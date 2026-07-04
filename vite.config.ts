@@ -8,7 +8,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // e.g. base: '/tv-tracker/'
 // If deploying to a custom domain or a <username>.github.io root repo, use '/'
 export default defineConfig({
-  base: "/TV-Tracker/",
+  base: "/",
   plugins: [
     react(),
     tailwindcss(),
