@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/TV-Tracker/sw.js', { scope: '/TV-Tracker/' })})}
