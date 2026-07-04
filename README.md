@@ -1,0 +1,1 @@
+A web based app made to help you keep track of what episodes you are on your favorite shows. It saves your data by use of your google drive or localstorage. [Test it here](https://4yourztruly.github.io/TV-Tracker/)
