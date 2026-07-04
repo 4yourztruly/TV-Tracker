@@ -1,0 +1,101 @@
+import { useEffect } from 'react';
+import { Header } from './components/Header';
+import { TabBar } from './components/TabBar';
+import { HomeScreen } from './screens/HomeScreen';
+import { SearchScreen } from './screens/SearchScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { ShowDetailScreen } from './screens/ShowDetailScreen';
+import { useAppStore } from './store/store';
+import { initGoogleAuth, onGoogleAuthReady, onTokenChange, trySilentSignIn, isTokenFresh } from './api/auth';
+
+// Google access tokens only last ~1 hour. Rather than waiting for one to
+// go stale mid-use and forcing a Drive call to block on a refresh, we
+// proactively re-request a fresh one in the background every 45 minutes
+// while the app stays open and the user has opted into Drive sync. This
+// is still the same silent (prompt: '') flow — it doesn't show anything
+// as long as the user's Google consent grant is still valid.
+const SILENT_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
+import { loadFromDrive } from './store/sync';
+
+function loadGisScript(onReady: () => void) {
+  const existing = document.getElementById('gis-script');
+  if (existing) {
+    onReady();
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.id = 'gis-script';
+  script.async = true;
+  script.defer = true;
+  script.onload = onReady;
+  document.head.appendChild(script);
+}
+
+export default function App() {
+  const activeTab = useAppStore((s) => s.activeTab);
+  const selectedShowId = useAppStore((s) => s.selectedShowId);
+  const previewShow = useAppStore((s) => s.previewShow);
+  const setSignedIn = useAppStore((s) => s.setSignedIn);
+  const setGoogleAuthReady = useAppStore((s) => s.setGoogleAuthReady);
+
+  useEffect(() => {
+    const unsubscribeReady = onGoogleAuthReady(setGoogleAuthReady);
+    const unsubscribeToken = onTokenChange((token) => {
+      setSignedIn(!!token);
+      if (token) {
+        loadFromDrive();
+      } else {
+        useAppStore.getState().setDriveFileId(null);
+      }
+    });
+
+    let refreshInterval: ReturnType<typeof setInterval> | undefined;
+
+    function connectGoogleAuth() {
+      loadGisScript(() => {
+        initGoogleAuth();
+        if (useAppStore.getState().driveSyncEnabled) {
+          trySilentSignIn();
+        }
+        // Keep quietly renewing in the background so a long-open tab
+        // never sits on an expired token — and so a user who left the
+        // app open for hours doesn't see any interruption.
+        refreshInterval = setInterval(() => {
+          if (useAppStore.getState().driveSyncEnabled && !isTokenFresh()) {
+            trySilentSignIn();
+          }
+        }, SILENT_REFRESH_INTERVAL_MS);
+      });
+    }
+
+    let unsubscribeHydration: (() => void) | undefined;
+    if (useAppStore.persist.hasHydrated()) {
+      connectGoogleAuth();
+    } else {
+      unsubscribeHydration = useAppStore.persist.onFinishHydration(connectGoogleAuth);
+    }
+
+    return () => {
+      unsubscribeHydration?.();
+      unsubscribeToken();
+      unsubscribeReady();
+      if (refreshInterval) clearInterval(refreshInterval);
+    };
+  }, [setGoogleAuthReady, setSignedIn]);
+
+  return (
+    <div className="flex min-h-screen w-full justify-center bg-ink-950">
+      <div className="flex h-screen w-full max-w-[480px] flex-col md:border-x md:border-ink-800">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          {activeTab === 'home' && <HomeScreen />}
+          {activeTab === 'search' && <SearchScreen />}
+          {activeTab === 'settings' && <SettingsScreen />}
+        </main>
+        <TabBar />
+        {(selectedShowId || previewShow) && <ShowDetailScreen />}
+      </div>
+    </div>
+  );
+}
