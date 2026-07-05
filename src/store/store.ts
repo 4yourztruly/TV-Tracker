@@ -60,6 +60,14 @@ interface AppState {
    * plain display preference (not a credential), same as driveSyncEnabled. */
   homeViewMode: 'list' | 'grid';
   setHomeViewMode: (mode: 'list' | 'grid') => void;
+
+  /** When true, the Home screen shows only the "Watching" section —
+   * Watchlist, Up to date, and Completed are hidden. A display
+   * preference the user can flip in Settings so a long completed
+   * history doesn't clutter the home screen. Applies to both list and
+   * grid layouts. */
+  onlyShowWatching: boolean;
+  setOnlyShowWatching: (only: boolean) => void;
 }
 
 // idb-keyval backed storage adapter so Zustand's persist middleware can
@@ -172,6 +180,9 @@ export const useAppStore = create<AppState>()(
 
       homeViewMode: 'list',
       setHomeViewMode: (mode) => set({ homeViewMode: mode }),
+
+      onlyShowWatching: false,
+      setOnlyShowWatching: (only) => set({ onlyShowWatching: only }),
     }),
     {
       name: 'tv-tracker-storage',
@@ -188,6 +199,7 @@ export const useAppStore = create<AppState>()(
         lastSyncedAt: state.lastSyncedAt,
         driveSyncEnabled: state.driveSyncEnabled,
         homeViewMode: state.homeViewMode,
+        onlyShowWatching: state.onlyShowWatching,
       }),
       // Bumped for the watchedEpisodes migration — upgrades anyone
       // rehydrating from an older locally-persisted copy.

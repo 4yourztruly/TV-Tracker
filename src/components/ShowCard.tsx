@@ -105,12 +105,12 @@ export function ShowCard({ show }: Props) {
             </span>
           ) : next ? (
             <>
-              <div className="flex items-center text-xs text-ink-400">
+              <div className="flex items-center text-sm text-ink-300">
                 <span className="font-semibold">S{next.season}</span>
-                <span className="mx-1 h-3 w-px bg-ink-700" aria-hidden="true" />
+                <span className="mx-1.5 h-3.5 w-px bg-ink-700" aria-hidden="true" />
                 <span className="font-semibold">E{next.episode}</span>
                 {left != null && left > 0 && (
-                  <span className="ml-1 flex-shrink-0 font-normal text-ink-400">+{left}</span>
+                  <span className="ml-1.5 flex-shrink-0 font-normal text-ink-400">+{left}</span>
                 )}
               </div>
               {nextEpisodeTitle && (

@@ -4,12 +4,15 @@ import { requestSignIn, signOut } from '../api/auth';
 import { exportTrackerData, importTrackerData } from '../utils/exportImport';
 import { computeWatchStats, formatWatchTime } from '../utils/stats';
 import { syncToDrive } from '../store/sync';
+import { Toggle } from '../components/Toggle';
 import type { TrackerData } from '../types/show';
 
 export function SettingsScreen() {
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const isGoogleAuthReady = useAppStore((s) => s.isGoogleAuthReady);
   const driveSyncEnabled = useAppStore((s) => s.driveSyncEnabled);
+  const onlyShowWatching = useAppStore((s) => s.onlyShowWatching);
+  const setOnlyShowWatching = useAppStore((s) => s.setOnlyShowWatching);
   // The user has signed in before (driveSyncEnabled is a persisted
   // preference, not a credential) but we don't have a live token yet —
   // e.g. right after a page load, while the silent background
@@ -117,6 +120,16 @@ export function SettingsScreen() {
             Last synced: {new Date(lastSyncedAt).toLocaleString()}
           </p>
         )}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Display</h2>
+        <Toggle
+          checked={onlyShowWatching}
+          onChange={setOnlyShowWatching}
+          label="Only show Watching"
+          description="Hide Watchlist, Up to date, and Completed on the home screen."
+        />
       </section>
 
       <section className="flex flex-col gap-2">

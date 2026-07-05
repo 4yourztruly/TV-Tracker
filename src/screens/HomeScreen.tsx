@@ -7,6 +7,7 @@ import { isShowUpToDate } from '../utils/progress';
 export function HomeScreen() {
   const shows = useAppStore((s) => s.shows);
   const homeViewMode = useAppStore((s) => s.homeViewMode);
+  const onlyShowWatching = useAppStore((s) => s.onlyShowWatching);
 
   const upToDate = shows.filter(isShowUpToDate);
   const watching = shows.filter((s) => s.status === 'watching' && !isShowUpToDate(s));
@@ -26,6 +27,18 @@ export function HomeScreen() {
 
   const isGrid = homeViewMode === 'grid';
 
+  if (onlyShowWatching && watching.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+        <p className="text-sm font-medium text-ink-200">Nothing in progress right now</p>
+        <p className="text-xs text-ink-400">
+          "Only show Watching" is on in Settings — turn it off to see your Watchlist and
+          Completed shows.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 py-4">
       {watching.length > 0 && (
@@ -36,7 +49,7 @@ export function HomeScreen() {
         </Section>
       )}
 
-      {unwatched.length > 0 && (
+      {unwatched.length > 0 && !onlyShowWatching && (
         <Section title="Watchlist" grid={isGrid}>
           {unwatched.map((show) => (
             <ShowItem key={show.id} show={show} grid={isGrid} />
@@ -44,7 +57,7 @@ export function HomeScreen() {
         </Section>
       )}
 
-      {upToDate.length > 0 && (
+      {upToDate.length > 0 && !onlyShowWatching && (
         <Section title="Up to date" grid={isGrid}>
           {upToDate.map((show) => (
             <ShowItem key={show.id} show={show} grid={isGrid} />
@@ -52,7 +65,7 @@ export function HomeScreen() {
         </Section>
       )}
 
-      {completed.length > 0 && (
+      {completed.length > 0 && !onlyShowWatching && (
         <Section title="Completed" grid={isGrid}>
           {completed.map((show) => (
             <ShowItem key={show.id} show={show} grid={isGrid} />
