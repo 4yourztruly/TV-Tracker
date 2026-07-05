@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ImdbRating } from '../components/ImdbRating';
 import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
@@ -43,6 +44,10 @@ export function ShowDetailScreen() {
   const [rewatchPrompt, setRewatchPrompt] = useState<{ season: number; episode: number } | null>(
     null
   );
+  // Confirms permanently removing the show from the tracker. Uses the
+  // same styled ConfirmDialog as the episode prompts instead of the
+  // native browser confirm(), which looks jarringly out of place.
+  const [showRemovePrompt, setShowRemovePrompt] = useState(false);
 
   const trackedShow = shows.find((s) => s.id === selectedShowId);
   // Preview mode: viewing a search result's details before it's been
@@ -169,11 +174,14 @@ export function ShowDetailScreen() {
   }
 
   function handleRemove() {
-    if (confirm(`Remove "${show!.title}" from your tracker?`)) {
-      removeShow(show!.id);
-      syncToDrive();
-      handleClose();
-    }
+    setShowRemovePrompt(true);
+  }
+
+  function handleConfirmRemove() {
+    removeShow(show!.id);
+    syncToDrive();
+    setShowRemovePrompt(false);
+    handleClose();
   }
 
   return (
@@ -245,8 +253,13 @@ export function ShowDetailScreen() {
             </div>
           </div>
 
+          <div className="mt-4 flex items-center gap-2">
+            <h3 className="min-w-0 truncate text-base font-semibold text-ink-100">{show.title}</h3>
+            <ImdbRating title={show.title} />
+          </div>
+
           {show.summary && (
-            <p className="mt-4 text-sm leading-relaxed text-ink-200">{show.summary}</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-200">{show.summary}</p>
           )}
 
           <div className="mt-6 flex flex-col gap-2">
@@ -309,6 +322,16 @@ export function ShowDetailScreen() {
               onClick: handleConfirmRemoveWatch,
               variant: 'danger',
             },
+          ]}
+        />
+      )}
+      {showRemovePrompt && (
+        <ConfirmDialog
+          title="Remove show"
+          message={`Remove "${show.title}" from your tracker? This can't be undone.`}
+          onDismiss={() => setShowRemovePrompt(false)}
+          actions={[
+            { label: 'Remove from tracker', onClick: handleConfirmRemove, variant: 'danger' },
           ]}
         />
       )}

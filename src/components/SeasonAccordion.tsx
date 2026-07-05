@@ -59,13 +59,17 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
             onToggleSeason(season.season);
           }}
           aria-label={seasonWatched ? 'Mark season unwatched' : 'Mark whole season watched'}
-          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
-            seasonWatched
-              ? 'border-ok-500 bg-ok-500/10 text-ok-500'
-              : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
+          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 ${
+            seasonWatched ? 'bg-ok-500' : 'bg-white hover:bg-ink-200'
           }`}
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3">
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-5 w-5 ${seasonWatched ? 'text-white' : 'text-ink-600'}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+          >
             <path d="M4 12.5L9.5 18L20 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -82,16 +86,32 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2.5 text-left text-xs ${
-                    isNext ? 'bg-ink-800/60' : ''
-                  }`}
+                  className={`flex w-full items-stretch gap-2 overflow-hidden rounded-md text-left text-xs ${
+                    show.source !== 'tmdb' ? 'pl-2' : ''
+                  } ${isNext ? 'bg-ink-800/60' : ''}`}
                 >
-                  <span className="w-8 flex-shrink-0 text-ink-400">E{ep.episode}</span>
-                  <span className="min-w-0 flex-1 truncate text-ink-200">
+                  {show.source === 'tmdb' &&
+                    (ep.imageUrl ? (
+                      <img
+                        src={ep.imageUrl}
+                        alt=""
+                        className="h-16 w-28 flex-shrink-0 self-stretch object-cover"
+                      />
+                    ) : (
+                      // No still available for this episode (common —
+                      // TMDB doesn't have images for every episode).
+                      // Blend into the row instead of a visible empty
+                      // box so it doesn't stick out.
+                      <div className="h-16 w-28 flex-shrink-0 self-stretch bg-ink-900" />
+                    ))}
+                  <span className="flex-shrink-0 self-center py-2.5 text-ink-400">
+                    E{ep.episode}
+                  </span>
+                  <span className="min-w-0 flex-1 self-center truncate py-2.5 pr-2 text-ink-200">
                     {ep.title || `Episode ${ep.episode}`}
                   </span>
                   {isNext && !watched && (
-                    <span className="flex-shrink-0 text-xs text-signal-500">next</span>
+                    <span className="flex-shrink-0 self-center pr-2 text-xs text-signal-500">next</span>
                   )}
                   <button
                     onClick={() => onEpisodeCheckboxClick(season.season, ep.episode)}
@@ -100,15 +120,13 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
                         ? `Watched ${watchCount > 1 ? `${watchCount} times` : 'once'} — tap to change`
                         : 'Mark episode watched'
                     }
-                    className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
-                      watched
-                        ? 'border-ok-500 bg-ok-500/10 text-ok-500'
-                        : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
+                    className={`relative my-2 mr-2 flex h-11 w-11 flex-shrink-0 items-center justify-center self-center rounded-full transition-colors active:scale-95 ${
+                      watched ? 'bg-ok-500' : 'bg-white hover:bg-ink-200'
                     }`}
                   >
                     <svg
                       viewBox="0 0 24 24"
-                      className="h-4 w-4"
+                      className={`h-4 w-4 ${watched ? 'text-white' : 'text-ink-600'}`}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="3"

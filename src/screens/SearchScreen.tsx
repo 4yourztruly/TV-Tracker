@@ -3,6 +3,7 @@ import type { SearchResult, TrackedShow } from '../types/show';
 import { searchAll, getShowDetails } from '../api/search';
 import { useAppStore } from '../store/store';
 import { syncToDrive } from '../store/sync';
+import { ImdbRating } from '../components/ImdbRating';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -163,8 +164,11 @@ export function SearchScreen() {
                 <div className="h-16 w-11 flex-shrink-0 rounded-md bg-ink-800" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink-100">
-                  {openingId === key ? 'Loading…' : result.title}
+                <p className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-ink-100">
+                    {openingId === key ? 'Loading…' : result.title}
+                  </span>
+                  {openingId !== key && <ImdbRating title={result.title} year={result.year} />}
                 </p>
                 <p className="text-xs text-ink-400">
                   {result.source === 'tmdb' ? 'TV' : 'Anime'}

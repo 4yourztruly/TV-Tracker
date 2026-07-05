@@ -14,6 +14,13 @@ interface AppState {
   setSignedIn: (signedIn: boolean) => void;
   isGoogleAuthReady: boolean;
   setGoogleAuthReady: (ready: boolean) => void;
+  /** Set right before triggering a Google sign-in from one of the two
+   * explicit Drive buttons in Settings, so that once the token comes
+   * back we know which action to run (save vs. load) instead of
+   * guessing or running both. Cleared as soon as it's consumed. Never
+   * persisted — it's meaningless across a reload. */
+  pendingSyncAction: 'save' | 'load' | null;
+  setPendingSyncAction: (action: 'save' | 'load' | null) => void;
 
   // --- shows ---
   shows: TrackedShow[];
@@ -91,6 +98,8 @@ export const useAppStore = create<AppState>()(
       setSignedIn: (signedIn) => set({ isSignedIn: signedIn }),
       isGoogleAuthReady: false,
       setGoogleAuthReady: (ready) => set({ isGoogleAuthReady: ready }),
+      pendingSyncAction: null,
+      setPendingSyncAction: (action) => set({ pendingSyncAction: action }),
 
       shows: [],
       addShow: (show) => set((s) => ({ shows: [...s.shows, show], previewShow: null })),

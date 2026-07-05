@@ -12,8 +12,8 @@
   --color-ink-200: #b9c1d4;
   --color-ink-100: #e4e8f1;
 
-  --color-signal-500: #ff8a4c; /* warm amber-orange: "next up" accent */
-  --color-signal-600: #eb6f2d;
+  --color-signal-500: #facc15; /* bright yellow: "next up" accent */
+  --color-signal-600: #eab308;
 
   --color-ok-500: #4ade80; /* up to date / caught up while show is ongoing */
   --color-purple-500: #a78bfa; /* fully completed (show or user marked done) */
@@ -49,4 +49,20 @@ input,
 select,
 textarea {
   font-size: 16px;
+}
+
+/* Watched tap feedback (Home screen "mark next episode watched"
+   button): a solid green sheet wipes across the show card from left
+   to right. Once it fully covers the card the overlay is removed
+   (onAnimationEnd), simply revealing the card underneath again — the
+   wipe is a transient confirmation, not a new resting state. Animating
+   `transform: scaleX()` from a left `transform-origin` (rather than
+   `width`) keeps this on the compositor for a smooth sweep. */
+@keyframes card-wipe {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
 }

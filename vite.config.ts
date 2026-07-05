@@ -14,7 +14,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      includeAssets: [
+        "favicon.svg",
+        "favicon.ico",
+        "favicon-16.png",
+        "favicon-32.png",
+        "apple-touch-icon.png",
+      ],
       manifest: {
         name: "TV Tracker",
         short_name: "TV Tracker",
@@ -28,6 +34,21 @@ export default defineConfig({
             src: "favicon.svg",
             sizes: "any",
             type: "image/svg+xml",
+          },
+          {
+            src: "favicon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "favicon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "apple-touch-icon.png",
+            sizes: "180x180",
+            type: "image/png",
           },
         ],
       },

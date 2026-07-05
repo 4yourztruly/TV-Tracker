@@ -1,14 +1,14 @@
-import { useEffect } from 'react';
-import type { TrackedShow } from '../types/show';
+import { useEffect, useState } from "react";
+import type { TrackedShow } from "../types/show";
 import {
   getNextEpisode,
   getEpisodesLeft,
   hasWatchedAllKnownEpisodes,
   isShowUpToDate,
-} from '../utils/progress';
-import { useAppStore } from '../store/store';
-import { syncToDrive } from '../store/sync';
-import { getSeasonEpisodes, getShowDetails } from '../api/search';
+} from "../utils/progress";
+import { useAppStore } from "../store/store";
+import { syncToDrive } from "../store/sync";
+import { getSeasonEpisodes, getShowDetails } from "../api/search";
 
 interface Props {
   show: TrackedShow;
@@ -23,8 +23,8 @@ export function ShowCard({ show }: Props) {
   const next = getNextEpisode(show);
   const left = getEpisodesLeft(show);
   const upToDate = isShowUpToDate(show);
-  const finishedLabel = upToDate ? 'Up to date' : 'Completed';
-  const caughtUpLabel = upToDate ? 'Up to date' : 'Caught up';
+  const finishedLabel = upToDate ? "Up to date" : "Completed";
+  const caughtUpLabel = upToDate ? "Up to date" : "Caught up";
   const nextEpisodeTitle = next
     ? show.seasons
         .find((season) => season.season === next.season)
@@ -32,7 +32,9 @@ export function ShowCard({ show }: Props) {
     : null;
 
   useEffect(() => {
-    const season = next ? show.seasons.find((seasonInfo) => seasonInfo.season === next.season) : null;
+    const season = next
+      ? show.seasons.find((seasonInfo) => seasonInfo.season === next.season)
+      : null;
     if (!next || season?.episodes) return;
 
     let cancelled = false;
@@ -41,17 +43,29 @@ export function ShowCard({ show }: Props) {
         if (!cancelled) cacheSeasonEpisodes(show.id, next.season, episodes);
       })
       .catch((err) => {
-        console.error('Failed to load card episode title:', err);
+        console.error("Failed to load card episode title:", err);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [cacheSeasonEpisodes, next, show.id, show.seasons, show.source, show.sourceId]);
+  }, [
+    cacheSeasonEpisodes,
+    next,
+    show.id,
+    show.seasons,
+    show.source,
+    show.sourceId,
+  ]);
 
   useEffect(() => {
-    const needsStatusForDisplay = show.status === 'completed' || hasWatchedAllKnownEpisodes(show);
-    if (show.seriesStatus === 'ongoing' || show.seriesStatusVersion === 2 || !needsStatusForDisplay) {
+    const needsStatusForDisplay =
+      show.status === "completed" || hasWatchedAllKnownEpisodes(show);
+    if (
+      show.seriesStatus === "ongoing" ||
+      show.seriesStatusVersion === 2 ||
+      !needsStatusForDisplay
+    ) {
       return;
     }
 
@@ -63,7 +77,7 @@ export function ShowCard({ show }: Props) {
         syncToDrive();
       })
       .catch((err) => {
-        console.error('Failed to refresh series status:', err);
+        console.error("Failed to refresh series status:", err);
       });
 
     return () => {
@@ -71,10 +85,24 @@ export function ShowCard({ show }: Props) {
     };
   }, [show, updateSeriesStatus]);
 
+  // True while the green "watched" wipe is sweeping across the card.
+  // The checkmark button is disabled for the duration so a second tap
+  // can't queue up another mark-watched while the first is still
+  // playing out.
+  const [isWiping, setIsWiping] = useState(false);
+  // Bumped on every tap so the wipe overlay below can be re-keyed and
+  // restart its CSS animation from scratch, even though the button
+  // itself never unmounts (it keeps showing whatever the new "next
+  // episode" is after the click goes through).
+  const [wipeKey, setWipeKey] = useState(0);
+
   function handleCheck(e: React.MouseEvent) {
     e.stopPropagation(); // don't also open the detail view
+    if (isWiping) return; // ignore taps until the current wipe finishes
     markNextEpisodeWatched(show.id);
     syncToDrive();
+    setWipeKey((k) => k + 1);
+    setIsWiping(true);
   }
 
   return (
@@ -82,8 +110,17 @@ export function ShowCard({ show }: Props) {
       onClick={() => setSelectedShow(show.id)}
       role="button"
       tabIndex={0}
-      className="flex cursor-pointer items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-3.5 transition-colors hover:border-ink-700 active:bg-ink-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
+      className="relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900 p-3.5 transition-colors hover:border-ink-700 active:bg-ink-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
     >
+      {isWiping && (
+        <span
+          key={wipeKey}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 origin-left bg-ok-500"
+          style={{ animation: 'card-wipe 0.5s ease' }}
+          onAnimationEnd={() => setIsWiping(false)}
+        />
+      )}
       {show.posterUrl ? (
         <img
           src={show.posterUrl}
@@ -95,11 +132,13 @@ export function ShowCard({ show }: Props) {
       )}
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink-100">{show.title}</p>
+        <p className="truncate text-sm font-semibold text-ink-100">
+          {show.title}
+        </p>
         <div className="mt-0.5">
-          {show.status === 'completed' ? (
+          {show.status === "completed" ? (
             <span
-              className={`text-xs font-medium ${upToDate ? 'text-ok-500' : 'text-purple-400'}`}
+              className={`text-xs font-medium ${upToDate ? "text-ok-500" : "text-purple-400"}`}
             >
               {finishedLabel}
             </span>
@@ -107,18 +146,27 @@ export function ShowCard({ show }: Props) {
             <>
               <div className="flex items-center text-sm text-ink-300">
                 <span className="font-semibold">S{next.season}</span>
-                <span className="mx-1.5 h-3.5 w-px bg-ink-700" aria-hidden="true" />
+                <span
+                  className="mx-1.5 h-3.5 w-px bg-ink-700"
+                  aria-hidden="true"
+                />
                 <span className="font-semibold">E{next.episode}</span>
                 {left != null && left > 0 && (
-                  <span className="ml-1.5 flex-shrink-0 font-normal text-ink-400">+{left}</span>
+                  <span className="ml-1.5 flex-shrink-0 font-normal text-ink-400">
+                    +{left}
+                  </span>
                 )}
               </div>
               {nextEpisodeTitle && (
-                <p className="mt-0.5 truncate text-xs text-ink-500">{nextEpisodeTitle}</p>
+                <p className="mt-0.5 truncate text-xs text-ink-500">
+                  {nextEpisodeTitle}
+                </p>
               )}
             </>
           ) : (
-            <span className={`text-xs ${upToDate ? 'text-ok-500' : 'text-purple-400'}`}>
+            <span
+              className={`text-xs ${upToDate ? "text-ok-500" : "text-purple-400"}`}
+            >
               {caughtUpLabel}
             </span>
           )}
@@ -128,12 +176,28 @@ export function ShowCard({ show }: Props) {
       {next && (
         <button
           onClick={handleCheck}
+          disabled={isWiping}
           aria-label="Mark episode watched"
-          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2 border-ink-600 text-ink-400 transition-colors hover:border-signal-500 hover:text-signal-500 active:scale-95"
+          aria-disabled={isWiping}
+          className="relative z-20 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white transition-colors active:scale-95 disabled:pointer-events-none"
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3">
-            <path d="M4 12.5L9.5 18L20 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {/* Hidden while the wipe plays so the button doesn't look
+              tappable during the disabled window. */}
+          {!isWiping && (
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5 text-ink-600"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            >
+              <path
+                d="M4 12.5L9.5 18L20 6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
         </button>
       )}
     </div>

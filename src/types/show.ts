@@ -9,6 +9,10 @@ export interface EpisodeInfo {
   episode: number;
   title?: string;
   airdate?: string;
+  /** Episode still/thumbnail image, when the source provides one.
+   * TMDB does (per-episode "still"); Jikan/MAL's episode list doesn't,
+   * so anime episodes won't have one. */
+  imageUrl?: string;
 }
 
 export interface SeasonSummary {

@@ -20,14 +20,24 @@
         script-src 'self' https://accounts.google.com;
         style-src 'self' 'unsafe-inline';
         img-src 'self' data: https://image.tmdb.org https://cdn.myanimelist.net https:;
-        connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.themoviedb.org https://api.jikan.moe;
+        connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.themoviedb.org https://api.jikan.moe https://www.omdbapi.com;
         frame-src https://accounts.google.com;
         worker-src 'self';
         base-uri 'self';
         form-action 'self';"
     />
 
+    <!--
+      Safari (desktop and iOS) doesn't support SVG favicons, so the
+      svg-only link alone leaves the tab blank there — an .ico plus
+      sized PNG fallbacks cover it and every other browser/PWA
+      context (iOS home-screen icon, Android launcher, etc).
+    -->
+    <link rel="icon" href="favicon.ico" sizes="any" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   </head>
   <body>
     <div id="root"></div>

@@ -102,5 +102,6 @@ export async function getTmdbSeasonEpisodes(showId: number, season: number) {
     episode: e.episode_number,
     title: e.name,
     airdate: e.air_date,
+    imageUrl: e.still_path ? `${TMDB_IMAGE_BASE}${e.still_path}` : undefined,
   }));
 }
