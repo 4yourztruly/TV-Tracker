@@ -6,6 +6,10 @@ interface Props {
   title: string;
   year?: string;
   className?: string;
+  /** Called once the rating lookup settles (found or not), so a parent
+   * can hold a loading spinner over a whole list of these until every
+   * rating is in, instead of ratings popping in one at a time. */
+  onReady?: () => void;
 }
 
 /** A small "★ 8.4" IMDb rating badge. Renders nothing while loading or
@@ -13,18 +17,21 @@ interface Props {
  * match, thin anime coverage, etc.) — this is supplementary info, so
  * it fails silently rather than showing a loading flicker or an empty
  * state that competes with the show's own data. */
-export function ImdbRating({ title, year, className = '' }: Props) {
+export function ImdbRating({ title, year, className = '', onReady }: Props) {
   const [rating, setRating] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setRating(null);
     getImdbRating(title, year).then((r) => {
-      if (!cancelled) setRating(r);
+      if (cancelled) return;
+      setRating(r);
+      onReady?.();
     });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, year]);
 
   if (!rating) return null;

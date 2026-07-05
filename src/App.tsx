@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { TabBar } from './components/TabBar';
+import { Spinner } from './components/Spinner';
 import { HomeScreen } from './screens/HomeScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -40,6 +41,18 @@ export default function App() {
   const previewShow = useAppStore((s) => s.previewShow);
   const setSignedIn = useAppStore((s) => s.setSignedIn);
   const setGoogleAuthReady = useAppStore((s) => s.setGoogleAuthReady);
+
+  // The tracked shows list lives in IndexedDB and is read back in
+  // asynchronously by zustand's persist middleware. Without this gate,
+  // the Home screen briefly renders as if nothing were tracked yet and
+  // then pops in the real list a moment later — hold a spinner over
+  // the whole app shell until that initial read completes instead.
+  const [hasHydrated, setHasHydrated] = useState(() => useAppStore.persist.hasHydrated());
+
+  useEffect(() => {
+    if (hasHydrated) return;
+    return useAppStore.persist.onFinishHydration(() => setHasHydrated(true));
+  }, [hasHydrated]);
 
   useEffect(() => {
     const unsubscribeReady = onGoogleAuthReady(setGoogleAuthReady);
@@ -102,6 +115,14 @@ export default function App() {
       if (refreshInterval) clearInterval(refreshInterval);
     };
   }, [setGoogleAuthReady, setSignedIn]);
+
+  if (!hasHydrated) {
+    return (
+      <div className="flex min-h-dvh w-full items-center justify-center bg-ink-950">
+        <Spinner size={40} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-dvh w-full justify-center bg-ink-950">

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { SearchResult, TrackedShow } from '../types/show';
 import { searchAll, getShowDetails } from '../api/search';
 import { useAppStore } from '../store/store';
 import { syncToDrive } from '../store/sync';
 import { ImdbRating } from '../components/ImdbRating';
+import { Spinner } from '../components/Spinner';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -14,6 +15,15 @@ export function SearchScreen() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Each row's IMDb rating reports in once its lookup settles, so the
+  // whole results list can be held behind a spinner and revealed all
+  // at once instead of ratings popping in one row at a time.
+  const [ratingReadyKeys, setRatingReadyKeys] = useState<Set<string>>(new Set());
+  const markRatingReady = useCallback((key: string) => {
+    setRatingReadyKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }, []);
+  const ratingsReady = results.every((r) => ratingReadyKeys.has(`${r.source}-${r.sourceId}`));
 
   const shows = useAppStore((s) => s.shows);
   const addShow = useAppStore((s) => s.addShow);
@@ -143,53 +153,68 @@ export function SearchScreen() {
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      <div className="flex flex-col gap-2">
-        {results.map((result) => {
-          const key = `${result.source}-${result.sourceId}`;
-          const tracked = !!existingTrackedShow(result);
-          return (
-            <div
-              key={key}
-              onClick={() => handleOpenDetails(result)}
-              role="button"
-              tabIndex={0}
-              className="flex cursor-pointer items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-3 transition-colors hover:border-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
-            >
-              {result.posterUrl ? (
-                <img
-                  src={result.posterUrl}
-                  alt=""
-                  className="h-16 w-11 flex-shrink-0 rounded-md object-cover bg-ink-800"
-                />
-              ) : (
-                <div className="h-16 w-11 flex-shrink-0 rounded-md bg-ink-800" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-semibold text-ink-100">
-                    {openingId === key ? 'Loading…' : result.title}
-                  </span>
-                  {openingId !== key && <ImdbRating title={result.title} year={result.year} />}
-                </p>
-                <p className="text-xs text-ink-400">
-                  {result.source === 'tmdb' ? 'TV' : 'Anime'}
-                  {result.year ? ` · ${result.year}` : ''}
-                </p>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // don't also open the detail view
-                  handleAdd(result);
-                }}
-                disabled={tracked || addingId === key}
-                className="flex-shrink-0 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-100 transition-colors hover:border-signal-500 disabled:opacity-40"
-              >
-                {tracked ? 'Added' : addingId === key ? 'Adding…' : 'Add'}
-              </button>
+      {results.length > 0 && (
+        <div className="relative min-h-18">
+          {!ratingsReady && (
+            <div className="absolute inset-0 z-10 flex items-start justify-center bg-ink-950 pt-6">
+              <Spinner size={32} />
             </div>
-          );
-        })}
-      </div>
+          )}
+          <div className={`flex flex-col gap-2 ${ratingsReady ? '' : 'invisible'}`}>
+            {results.map((result) => {
+              const key = `${result.source}-${result.sourceId}`;
+              const tracked = !!existingTrackedShow(result);
+              return (
+                <div
+                  key={key}
+                  onClick={() => handleOpenDetails(result)}
+                  role="button"
+                  tabIndex={0}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-3 transition-colors hover:border-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
+                >
+                  {result.posterUrl ? (
+                    <img
+                      src={result.posterUrl}
+                      alt=""
+                      className="h-16 w-11 flex-shrink-0 rounded-md object-cover bg-ink-800"
+                    />
+                  ) : (
+                    <div className="h-16 w-11 flex-shrink-0 rounded-md bg-ink-800" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold text-ink-100">
+                        {openingId === key ? 'Loading…' : result.title}
+                      </span>
+                      {openingId !== key && (
+                        <ImdbRating
+                          title={result.title}
+                          year={result.year}
+                          onReady={() => markRatingReady(key)}
+                        />
+                      )}
+                    </p>
+                    <p className="text-xs text-ink-400">
+                      {result.source === 'tmdb' ? 'TV' : 'Anime'}
+                      {result.year ? ` · ${result.year}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // don't also open the detail view
+                      handleAdd(result);
+                    }}
+                    disabled={tracked || addingId === key}
+                    className="flex-shrink-0 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-100 transition-colors hover:border-signal-500 disabled:opacity-40"
+                  >
+                    {tracked ? 'Added' : addingId === key ? 'Adding…' : 'Add'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

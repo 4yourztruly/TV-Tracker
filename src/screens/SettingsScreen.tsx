@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useAppStore } from '../store/store';
 import { requestSignIn, signOut } from '../api/auth';
 import { exportTrackerData, importTrackerData } from '../utils/exportImport';
-import { computeWatchStats, formatWatchTime } from '../utils/stats';
+import { computeWatchStats, formatWatchTimeAs, WATCH_TIME_UNITS, type WatchTimeUnit } from '../utils/stats';
 import { syncToDrive, loadFromDrive, saveToDriveNow } from '../store/sync';
 import { Toggle } from '../components/Toggle';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -21,6 +21,7 @@ export function SettingsScreen() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmLoad, setConfirmLoad] = useState(false);
+  const [watchTimeUnit, setWatchTimeUnit] = useState<WatchTimeUnit>('auto');
 
   const stats = computeWatchStats(shows);
   const busy = syncStatus === 'syncing';
@@ -177,12 +178,27 @@ export function SettingsScreen() {
         ) : (
           <div className="rounded-lg border border-ink-800 bg-ink-900 p-3">
             <p className="text-2xl font-semibold text-signal-500">
-              {formatWatchTime(stats.totalMinutesWatched)}
+              {formatWatchTimeAs(stats.totalMinutesWatched, watchTimeUnit)}
             </p>
             <p className="text-xs text-ink-400">
               spent watching {stats.totalEpisodesWatched} episode
               {stats.totalEpisodesWatched === 1 ? '' : 's'}
             </p>
+            <div className="mt-3 flex gap-1.5 overflow-x-auto">
+              {WATCH_TIME_UNITS.map((unit) => (
+                <button
+                  key={unit.value}
+                  onClick={() => setWatchTimeUnit(unit.value)}
+                  className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    watchTimeUnit === unit.value
+                      ? 'bg-signal-500 text-ink-950'
+                      : 'border border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200'
+                  }`}
+                >
+                  {unit.label}
+                </button>
+              ))}
+            </div>
             <div className="mt-3 flex gap-4 border-t border-ink-800 pt-3 text-xs text-ink-300">
               <span>{stats.showsWatching} watching</span>
               <span>{stats.showsCompleted} completed</span>
@@ -190,10 +206,6 @@ export function SettingsScreen() {
             </div>
           </div>
         )}
-        <p className="text-xs text-ink-400">
-          Watch time is estimated from each show's average episode runtime
-          (falls back to ~24 min when a source doesn't report one).
-        </p>
       </section>
 
       <section className="flex flex-col gap-2">

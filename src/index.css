@@ -24,17 +24,24 @@
   --font-body: "Inter", system-ui, sans-serif;
 }
 
+/* The app shell is a single fixed-height layout (see App.tsx) with its
+   own internal scroll regions (main content, the show detail sheet,
+   season lists, ...). html/body/#root must never scroll or bounce
+   themselves — on iOS Safari, if any descendant ever grows taller
+   than the viewport (even briefly, e.g. mid-layout), the document
+   itself becomes scrollable and rubber-bands as one long page instead
+   of just the intended inner list. Pinning them to the viewport with
+   overflow: hidden rules that out regardless of descendant height. */
 html, body, #root {
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
   background: var(--color-ink-950);
   color: var(--color-ink-100);
   font-family: var(--font-body);
-  /* Prevent the iOS "bounce" from revealing white space past the safe
-     areas when the app is running standalone (added to home screen). */
-  overscroll-behavior-y: none;
 }
 
 /* Mobile Safari (and some Android browsers) auto-zoom the whole page
@@ -53,16 +60,41 @@ textarea {
 
 /* Watched tap feedback (Home screen "mark next episode watched"
    button): a solid green sheet wipes across the show card from left
-   to right. Once it fully covers the card the overlay is removed
-   (onAnimationEnd), simply revealing the card underneath again — the
-   wipe is a transient confirmation, not a new resting state. Animating
-   `transform: scaleX()` from a left `transform-origin` (rather than
-   `width`) keeps this on the compositor for a smooth sweep. */
+   to right, with a "Watched" label centered on it. Once it fully
+   covers the card the overlay is removed (onAnimationEnd), simply
+   revealing the card underneath again — the wipe is a transient
+   confirmation, not a new resting state. Animated via `clip-path`
+   rather than `transform: scaleX()` so the label text renders at its
+   normal size instead of being horizontally squashed as the sheet
+   grows in. */
 @keyframes card-wipe {
   0% {
-    transform: scaleX(0);
+    clip-path: inset(0 100% 0 0);
   }
   100% {
-    transform: scaleX(1);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ConfirmDialog entrance: backdrop fades in while the sheet itself
+   settles up/into place from a slightly lower, smaller, more
+   transparent start — a bit more considered than just appearing. */
+@keyframes dialog-backdrop-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-sheet-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

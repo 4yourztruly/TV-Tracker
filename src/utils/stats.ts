@@ -70,3 +70,34 @@ export function formatWatchTime(totalMinutes: number): string {
   const years = days / 365.25;
   return `${round(years)} year${years === 1 ? '' : 's'}`;
 }
+
+/** A specific unit to view total watch time in, picked explicitly in
+ * Settings, plus 'auto' for the largest-sensible-unit behavior above. */
+export type WatchTimeUnit = 'auto' | 'hours' | 'days' | 'weeks' | 'months' | 'years';
+
+export const WATCH_TIME_UNITS: { value: WatchTimeUnit; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'hours', label: 'Hours' },
+  { value: 'days', label: 'Days' },
+  { value: 'weeks', label: 'Weeks' },
+  { value: 'months', label: 'Months' },
+  { value: 'years', label: 'Years' },
+];
+
+const MINUTES_PER_UNIT: Record<Exclude<WatchTimeUnit, 'auto'>, number> = {
+  hours: 60,
+  days: 60 * 24,
+  weeks: 60 * 24 * 7,
+  months: 60 * 24 * 30.44,
+  years: 60 * 24 * 365.25,
+};
+
+/** Formats total watch time, forced into a specific unit rather than
+ * auto-picking the largest sensible one — lets someone flip between
+ * "how many hours" and "how many weeks" for the same total. */
+export function formatWatchTimeAs(totalMinutes: number, unit: WatchTimeUnit): string {
+  if (unit === 'auto') return formatWatchTime(totalMinutes);
+  const value = totalMinutes / MINUTES_PER_UNIT[unit];
+  const singular = unit.slice(0, -1);
+  return `${round(value)} ${value === 1 ? singular : unit}`;
+}

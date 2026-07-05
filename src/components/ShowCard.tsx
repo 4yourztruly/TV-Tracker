@@ -132,99 +132,103 @@ export function ShowCard({ show, onReady }: Props) {
       onClick={() => setSelectedShow(show.id)}
       role="button"
       tabIndex={0}
-      className="relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900 p-3.5 transition-colors hover:border-ink-700 active:bg-ink-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
+      className="relative flex cursor-pointer items-stretch gap-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900 transition-colors hover:border-ink-700 active:bg-ink-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
     >
       {isWiping && (
         <span
           key={wipeKey}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 origin-left bg-ok-500"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-ok-500 text-sm font-semibold text-white"
           style={{ animation: 'card-wipe 0.5s ease' }}
           onAnimationEnd={() => setIsWiping(false)}
-        />
+        >
+          Watched
+        </span>
       )}
       {show.posterUrl ? (
         <img
           src={show.posterUrl}
           alt=""
-          className="h-20 w-14 flex-shrink-0 rounded-md object-cover bg-ink-800"
+          className="h-full w-24 flex-shrink-0 object-cover bg-ink-800"
           onLoad={() => setPosterReady(true)}
           onError={() => setPosterReady(true)}
         />
       ) : (
-        <div className="h-20 w-14 flex-shrink-0 rounded-md bg-ink-800" />
+        <div className="h-full w-24 flex-shrink-0 bg-ink-800" />
       )}
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink-100">
-          {show.title}
-        </p>
-        <div className="mt-0.5">
-          {show.status === "completed" ? (
-            <span
-              className={`text-xs font-medium ${upToDate ? "text-ok-500" : "text-purple-400"}`}
-            >
-              {finishedLabel}
-            </span>
-          ) : next ? (
-            <>
-              <div className="flex items-center text-sm text-ink-300">
-                <span className="font-semibold">S{next.season}</span>
-                <span
-                  className="mx-1.5 h-3.5 w-px bg-ink-700"
-                  aria-hidden="true"
-                />
-                <span className="font-semibold">E{next.episode}</span>
-                {left != null && left > 0 && (
-                  <span className="ml-1.5 flex-shrink-0 font-normal text-ink-400">
-                    +{left}
-                  </span>
+      <div className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pr-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-ink-100">
+            {show.title}
+          </p>
+          <div className="mt-0.5">
+            {show.status === "completed" ? (
+              <span
+                className={`text-xs font-medium ${upToDate ? "text-ok-500" : "text-purple-400"}`}
+              >
+                {finishedLabel}
+              </span>
+            ) : next ? (
+              <>
+                <div className="flex items-center text-sm text-ink-300">
+                  <span className="font-semibold">S{next.season}</span>
+                  <span
+                    className="mx-1.5 h-3.5 w-px bg-ink-700"
+                    aria-hidden="true"
+                  />
+                  <span className="font-semibold">E{next.episode}</span>
+                  {left != null && left > 0 && (
+                    <span className="ml-1.5 flex-shrink-0 font-normal text-ink-400">
+                      +{left}
+                    </span>
+                  )}
+                </div>
+                {nextEpisodeTitle && (
+                  <p className="mt-0.5 truncate text-xs text-ink-500">
+                    {nextEpisodeTitle}
+                  </p>
                 )}
-              </div>
-              {nextEpisodeTitle && (
-                <p className="mt-0.5 truncate text-xs text-ink-500">
-                  {nextEpisodeTitle}
-                </p>
-              )}
-            </>
-          ) : (
-            <span
-              className={`text-xs ${upToDate ? "text-ok-500" : "text-purple-400"}`}
-            >
-              {caughtUpLabel}
-            </span>
-          )}
+              </>
+            ) : (
+              <span
+                className={`text-xs ${upToDate ? "text-ok-500" : "text-purple-400"}`}
+              >
+                {caughtUpLabel}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {next && (
-        <button
-          onClick={handleCheck}
-          disabled={isWiping}
-          aria-label="Mark episode watched"
-          aria-disabled={isWiping}
-          className={`relative z-20 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 disabled:pointer-events-none ${isWiping ? "bg-transparent" : "bg-white"}`}
-        >
-          {/* Hidden while the wipe plays so the whole button (circle
-              and checkmark) disappears together during the disabled
-              window. */}
-          {!isWiping && (
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5 text-ink-600"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-            >
-              <path
-                d="M4 12.5L9.5 18L20 6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </button>
-      )}
+        {next && (
+          <button
+            onClick={handleCheck}
+            disabled={isWiping}
+            aria-label="Mark episode watched"
+            aria-disabled={isWiping}
+            className={`relative z-20 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 disabled:pointer-events-none ${isWiping ? "bg-transparent" : "bg-white"}`}
+          >
+            {/* Hidden while the wipe plays so the whole button (circle
+                and checkmark) disappears together during the disabled
+                window. */}
+            {!isWiping && (
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 text-ink-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
+                <path
+                  d="M4 12.5L9.5 18L20 6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
