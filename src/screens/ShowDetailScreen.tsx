@@ -1,7 +1,17 @@
+import { useState } from 'react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { syncToDrive } from '../store/sync';
-import { toggleEpisodeWatched, toggleSeasonWatched } from '../utils/progress';
+import {
+  toggleEpisodeWatched,
+  toggleSeasonWatched,
+  hasUnwatchedEpisodesBefore,
+  markEpisodeAndPriorWatched,
+  incrementEpisodeWatchCount,
+  isEpisodeWatched,
+  getEpisodeWatchCount,
+} from '../utils/progress';
 import type { WatchStatus } from '../types/show';
 
 const STATUS_OPTIONS: { value: WatchStatus; label: string }[] = [
@@ -18,9 +28,21 @@ export function ShowDetailScreen() {
   const shows = useAppStore((s) => s.shows);
   const addShow = useAppStore((s) => s.addShow);
   const toggleEpisode = useAppStore((s) => s.toggleEpisode);
+  const markPriorEpisodesWatched = useAppStore((s) => s.markEpisodeAndPriorWatched);
+  const rewatchEpisodeAction = useAppStore((s) => s.rewatchEpisode);
   const toggleSeason = useAppStore((s) => s.toggleSeason);
   const setShowStatus = useAppStore((s) => s.setShowStatus);
   const removeShow = useAppStore((s) => s.removeShow);
+
+  // Pending confirmation prompts. skipPrompt: the user tapped an
+  // unwatched episode that has unwatched episodes before it — ask
+  // whether to also mark those. rewatchPrompt: the user tapped an
+  // episode that's already watched — ask whether to watch it again
+  // (bumping its count) or remove it from watched entirely.
+  const [skipPrompt, setSkipPrompt] = useState<{ season: number; episode: number } | null>(null);
+  const [rewatchPrompt, setRewatchPrompt] = useState<{ season: number; episode: number } | null>(
+    null
+  );
 
   const trackedShow = shows.find((s) => s.id === selectedShowId);
   // Preview mode: viewing a search result's details before it's been
@@ -35,25 +57,88 @@ export function ShowDetailScreen() {
     setPreviewShow(null);
   }
 
-  function handleToggleEpisode(season: number, episode: number) {
+  /** Applies a computed watchedEpisodes map, handling the preview-vs-
+   * tracked branch that all three episode-watch actions share. */
+  function commitWatchedEpisodes(watchedEpisodes: Record<string, number>) {
     if (isPreview) {
-      // Toggling an episode while previewing adds the show, with just
-      // that one episode marked watched — not implying anything before
-      // it was watched too. We then point selectedShowId at it so the
-      // same detail view stays open (previewShow gets cleared by
-      // addShow, so without this the screen would otherwise vanish).
-      const newShow = {
-        ...show!,
-        status: 'watching' as const,
-        watchedEpisodes: toggleEpisodeWatched(show!, season, episode),
-      };
+      const newShow = { ...show!, status: 'watching' as const, watchedEpisodes };
       addShow(newShow);
       setSelectedShow(newShow.id);
-      syncToDrive();
+    }
+    syncToDrive();
+  }
+
+  /** Tapping an episode's checkmark. Decides which prompt (if any) to
+   * show rather than toggling immediately:
+   *  - already watched → ask rewatch vs. remove
+   *  - not watched, but earlier episodes are still unwatched → ask
+   *    "just this one" vs. "mark everything before it too"
+   *  - otherwise → just mark it watched, no prompt needed */
+  function handleEpisodeCheckboxClick(season: number, episode: number) {
+    if (isEpisodeWatched(show!, season, episode)) {
+      setRewatchPrompt({ season, episode });
       return;
     }
-    toggleEpisode(show!.id, season, episode);
-    syncToDrive();
+    if (hasUnwatchedEpisodesBefore(show!, season, episode)) {
+      setSkipPrompt({ season, episode });
+      return;
+    }
+    if (isPreview) {
+      commitWatchedEpisodes(toggleEpisodeWatched(show!, season, episode));
+    } else {
+      toggleEpisode(show!.id, season, episode);
+      syncToDrive();
+    }
+  }
+
+  function handleConfirmJustThisEpisode() {
+    if (!skipPrompt) return;
+    const { season, episode } = skipPrompt;
+    if (isPreview) {
+      commitWatchedEpisodes(toggleEpisodeWatched(show!, season, episode));
+    } else {
+      toggleEpisode(show!.id, season, episode);
+      syncToDrive();
+    }
+    setSkipPrompt(null);
+  }
+
+  function handleConfirmMarkAllPrior() {
+    if (!skipPrompt) return;
+    const { season, episode } = skipPrompt;
+    if (isPreview) {
+      commitWatchedEpisodes(markEpisodeAndPriorWatched(show!, season, episode));
+    } else {
+      markPriorEpisodesWatched(show!.id, season, episode);
+      syncToDrive();
+    }
+    setSkipPrompt(null);
+  }
+
+  function handleConfirmRewatch() {
+    if (!rewatchPrompt) return;
+    const { season, episode } = rewatchPrompt;
+    if (isPreview) {
+      commitWatchedEpisodes(incrementEpisodeWatchCount(show!, season, episode));
+    } else {
+      rewatchEpisodeAction(show!.id, season, episode);
+      syncToDrive();
+    }
+    setRewatchPrompt(null);
+  }
+
+  function handleConfirmRemoveWatch() {
+    if (!rewatchPrompt) return;
+    const { season, episode } = rewatchPrompt;
+    if (isPreview) {
+      commitWatchedEpisodes(toggleEpisodeWatched(show!, season, episode));
+    } else {
+      // toggleEpisode removes it entirely (count → 0) since we already
+      // know it's currently watched.
+      toggleEpisode(show!.id, season, episode);
+      syncToDrive();
+    }
+    setRewatchPrompt(null);
   }
 
   function handleToggleSeason(season: number) {
@@ -94,8 +179,12 @@ export function ShowDetailScreen() {
   return (
     <div className="fixed inset-0 z-20 flex justify-center bg-black/40">
       <div className="flex h-full w-full max-w-[480px] flex-col bg-ink-950 md:border-x md:border-ink-800">
-        <div className="sticky top-0 flex items-center gap-3 border-b border-ink-800 bg-ink-950/95 px-4 py-3 backdrop-blur">
-          <button onClick={handleClose} className="text-ink-300 hover:text-ink-100" aria-label="Back">
+        <div className="sticky top-0 flex items-center gap-2 border-b border-ink-800 bg-ink-950/95 py-1.5 pl-1 pr-4 backdrop-blur">
+          <button
+            onClick={handleClose}
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg text-xl text-ink-300 transition-colors active:bg-ink-800/60 hover:text-ink-100"
+            aria-label="Back"
+          >
             &larr;
           </button>
           <h2 className="truncate text-sm font-semibold text-ink-100">{show.title}</h2>
@@ -167,7 +256,7 @@ export function ShowDetailScreen() {
                 key={season.season}
                 show={show}
                 season={season}
-                onToggleEpisode={handleToggleEpisode}
+                onEpisodeCheckboxClick={handleEpisodeCheckboxClick}
                 onToggleSeason={handleToggleSeason}
               />
             ))}
@@ -176,13 +265,53 @@ export function ShowDetailScreen() {
           {!isPreview && (
             <button
               onClick={handleRemove}
-              className="mt-8 w-full rounded-lg border border-ink-800 py-2 text-xs font-medium text-red-400 hover:border-red-400"
+              className="mt-8 min-h-12 w-full rounded-lg border border-ink-800 py-2 text-xs font-medium text-red-400 hover:border-red-400"
             >
               Remove from tracker
             </button>
           )}
         </div>
       </div>
+
+      {skipPrompt && (
+        <ConfirmDialog
+          title="Earlier episodes aren't marked watched"
+          message={`You haven't marked everything before S${skipPrompt.season}E${skipPrompt.episode} as watched. Mark just this episode, or everything before it too?`}
+          onDismiss={() => setSkipPrompt(null)}
+          actions={[
+            {
+              label: 'Mark all previous episodes too',
+              onClick: handleConfirmMarkAllPrior,
+              variant: 'primary',
+            },
+            {
+              label: 'Just this episode',
+              onClick: handleConfirmJustThisEpisode,
+              variant: 'neutral',
+            },
+          ]}
+        />
+      )}
+
+      {rewatchPrompt && (
+        <ConfirmDialog
+          title="Already watched"
+          message={`S${rewatchPrompt.season}E${rewatchPrompt.episode} is marked watched${
+            getEpisodeWatchCount(show, rewatchPrompt.season, rewatchPrompt.episode) > 1
+              ? ` (${getEpisodeWatchCount(show, rewatchPrompt.season, rewatchPrompt.episode)}×)`
+              : ''
+          }. Watch it again, or remove it from watched?`}
+          onDismiss={() => setRewatchPrompt(null)}
+          actions={[
+            { label: 'Watch again', onClick: handleConfirmRewatch, variant: 'primary' },
+            {
+              label: 'Remove from watched',
+              onClick: handleConfirmRemoveWatch,
+              variant: 'danger',
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

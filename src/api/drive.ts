@@ -95,12 +95,14 @@ export function isValidTrackerData(x: unknown): x is TrackerData {
   const obj = x as Record<string, unknown>;
   if (obj.version !== 1) return false;
   if (!Array.isArray(obj.shows)) return false;
-  return obj.shows.every(
-    (s) =>
-      typeof s === 'object' &&
-      s !== null &&
-      typeof (s as any).id === 'string' &&
-      typeof (s as any).title === 'string' &&
-      Array.isArray((s as any).watchedEpisodes)
-  );
+  return obj.shows.every((s) => {
+    if (typeof s !== 'object' || s === null) return false;
+    const show = s as Record<string, unknown>;
+    if (typeof show.id !== 'string' || typeof show.title !== 'string') return false;
+    const watched = show.watchedEpisodes;
+    // Must be a plain object (episode key -> watch count), not an array
+    // or anything else — migrateLegacyTrackerData runs before this and
+    // normalizes older shapes, so by now it should already be a map.
+    return typeof watched === 'object' && watched !== null && !Array.isArray(watched);
+  });
 }

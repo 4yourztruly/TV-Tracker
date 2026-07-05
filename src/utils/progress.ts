@@ -4,13 +4,26 @@ export function episodeKey(season: number, episode: number): string {
   return `${season}-${episode}`;
 }
 
-export function isEpisodeWatched(show: TrackedShow, season: number, episode: number): boolean {
-  return show.watchedEpisodes.includes(episodeKey(season, episode));
+/** How many times a specific episode has been watched (0 = never). */
+export function getEpisodeWatchCount(show: TrackedShow, season: number, episode: number): number {
+  return show.watchedEpisodes[episodeKey(season, episode)] ?? 0;
 }
 
-/** Total number of individually watched episodes. */
+export function isEpisodeWatched(show: TrackedShow, season: number, episode: number): boolean {
+  return getEpisodeWatchCount(show, season, episode) > 0;
+}
+
+/** Number of distinct episodes watched at least once (rewatches don't
+ * change this — watching S1E1 three times still counts as 1 here). */
 export function getWatchedEpisodeCount(show: TrackedShow): number {
-  return show.watchedEpisodes.length;
+  return Object.values(show.watchedEpisodes).filter((count) => count > 0).length;
+}
+
+/** Total watch instances across all episodes, including rewatches —
+ * e.g. one episode watched 3 times plus another watched once is 4.
+ * This is what watch-time stats should be based on. */
+export function getTotalWatchInstances(show: TrackedShow): number {
+  return Object.values(show.watchedEpisodes).reduce((sum, count) => sum + Math.max(count, 0), 0);
 }
 
 /** All episodes across all known seasons, in season/episode order. Used
@@ -69,37 +82,108 @@ export function deriveStatus(show: TrackedShow): WatchStatus {
   return 'watching';
 }
 
-/** Toggles a single episode's watched state, independent of any other
- * episode — checking S2E12 does NOT also check S2E1-E11. */
+/** Sets an episode's watch count directly. A count of 0 (or less)
+ * removes it from the map entirely — same as never having watched it —
+ * rather than leaving a stray zero entry around. */
+export function setEpisodeWatchCount(
+  show: TrackedShow,
+  season: number,
+  episode: number,
+  count: number
+): Record<string, number> {
+  const key = episodeKey(season, episode);
+  const updated = { ...show.watchedEpisodes };
+  if (count <= 0) {
+    delete updated[key];
+  } else {
+    updated[key] = count;
+  }
+  return updated;
+}
+
+/** Marks an episode as watched (count 1) or removes it (count 0),
+ * independent of any other episode — checking S2E12 does NOT also
+ * check S2E1-E11. Used for the simple "just this one" case; if the
+ * episode is already watched one or more times, this resets it to 1
+ * rather than incrementing — use incrementEpisodeWatchCount for
+ * rewatches. */
 export function toggleEpisodeWatched(
   show: TrackedShow,
   season: number,
   episode: number
-): string[] {
-  const key = episodeKey(season, episode);
-  if (show.watchedEpisodes.includes(key)) {
-    return show.watchedEpisodes.filter((k) => k !== key);
+): Record<string, number> {
+  const watched = isEpisodeWatched(show, season, episode);
+  return setEpisodeWatchCount(show, season, episode, watched ? 0 : 1);
+}
+
+/** Adds one more watch to an episode already marked watched (2x, 3x,
+ * ...) — used when the user chooses "watch again" on an episode they've
+ * already seen. */
+export function incrementEpisodeWatchCount(
+  show: TrackedShow,
+  season: number,
+  episode: number
+): Record<string, number> {
+  const current = getEpisodeWatchCount(show, season, episode);
+  return setEpisodeWatchCount(show, season, episode, current + 1);
+}
+
+/** Are there any unwatched episodes strictly before this one in
+ * sequential order? Used to decide whether marking an episode watched
+ * should prompt "mark everything before it too, or just this one." */
+export function hasUnwatchedEpisodesBefore(
+  show: TrackedShow,
+  season: number,
+  episode: number
+): boolean {
+  const order = allEpisodesInOrder(show);
+  const idx = order.findIndex((e) => e.season === season && e.episode === episode);
+  if (idx <= 0) return false;
+  return order.slice(0, idx).some((e) => !isEpisodeWatched(show, e.season, e.episode));
+}
+
+/** Marks this episode and every earlier unwatched episode as watched
+ * (count 1 each). Episodes already watched (including rewatched ones)
+ * are left exactly as they were — this only fills in gaps, it never
+ * resets an existing rewatch count. */
+export function markEpisodeAndPriorWatched(
+  show: TrackedShow,
+  season: number,
+  episode: number
+): Record<string, number> {
+  const order = allEpisodesInOrder(show);
+  const idx = order.findIndex((e) => e.season === season && e.episode === episode);
+  const updated = { ...show.watchedEpisodes };
+  for (let i = 0; i <= idx; i++) {
+    const key = episodeKey(order[i].season, order[i].episode);
+    if (!updated[key]) updated[key] = 1;
   }
-  return [...show.watchedEpisodes, key];
+  return updated;
 }
 
 /** Toggles an entire season at once: if every episode in the season is
- * already watched, unchecks all of them; otherwise marks all of them
- * watched. Other seasons are untouched. */
-export function toggleSeasonWatched(show: TrackedShow, season: number): string[] {
+ * already watched, unchecks all of them; otherwise marks all
+ * not-yet-watched ones watched (count 1). Already-watched episodes'
+ * rewatch counts are left untouched either way. Other seasons are
+ * untouched. */
+export function toggleSeasonWatched(show: TrackedShow, season: number): Record<string, number> {
   const seasonInfo = show.seasons.find((s) => s.season === season);
   if (!seasonInfo) return show.watchedEpisodes;
 
   const seasonKeys = Array.from({ length: seasonInfo.episodeCount }, (_, i) =>
     episodeKey(season, i + 1)
   );
-  const allWatched = seasonKeys.every((k) => show.watchedEpisodes.includes(k));
+  const allWatched = seasonKeys.every((k) => (show.watchedEpisodes[k] ?? 0) > 0);
 
+  const updated = { ...show.watchedEpisodes };
   if (allWatched) {
-    return show.watchedEpisodes.filter((k) => !seasonKeys.includes(k));
+    seasonKeys.forEach((k) => delete updated[k]);
+  } else {
+    seasonKeys.forEach((k) => {
+      if (!updated[k]) updated[k] = 1;
+    });
   }
-  const withoutSeason = show.watchedEpisodes.filter((k) => !seasonKeys.includes(k));
-  return [...withoutSeason, ...seasonKeys];
+  return updated;
 }
 
 export interface PosterProgress {

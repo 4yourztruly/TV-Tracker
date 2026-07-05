@@ -26,12 +26,14 @@ export interface TrackedShow {
   posterUrl?: string;
   status: WatchStatus;
 
-  /** Individually watched episodes, keyed as "season-episode" (e.g.
-   * "2-14"). A Set rather than a single "last watched" pointer, so a
-   * user can mark an arbitrary episode watched without implicitly
-   * marking everything before it. Stored as a string array for simple
-   * JSON serialization to Drive. */
-  watchedEpisodes: string[];
+  /** Watch count per episode, keyed as "season-episode" (e.g. "2-14").
+   * A count rather than a plain watched/unwatched flag, so rewatching
+   * an episode can be tracked (2x, 3x, ...) instead of collapsing back
+   * to "watched". A key's absence (or a count of 0) means unwatched;
+   * any count >= 1 means watched, with the count feeding total watch
+   * time in Settings > Stats. Stored as a plain object for simple JSON
+   * serialization to Drive. */
+  watchedEpisodes: Record<string, number>;
 
   /** Total known episode count. May be null for ongoing anime with an
    * unknown final count (Jikan can return null). */

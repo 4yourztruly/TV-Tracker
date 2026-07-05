@@ -36,3 +36,17 @@ body {
      areas when the app is running standalone (added to home screen). */
   overscroll-behavior-y: none;
 }
+
+/* Mobile Safari (and some Android browsers) auto-zoom the whole page
+   in when focusing a text input with a computed font-size under 16px.
+   That zoomed-in state then sticks around after the input blurs —
+   including after navigating to an unrelated screen like the show
+   detail view — making everything there feel too big and mis-tappable.
+   Forcing 16px here for every input/select/textarea, regardless of
+   whatever text-size utility class it also has, stops the zoom from
+   ever triggering in the first place. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}

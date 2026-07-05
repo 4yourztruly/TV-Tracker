@@ -67,7 +67,7 @@ export function SearchScreen() {
       summary: details.summary,
       posterUrl: details.posterUrl ?? result.posterUrl,
       status: 'unwatched',
-      watchedEpisodes: [],
+      watchedEpisodes: {},
       totalEpisodes: details.totalEpisodes,
       seriesStatus: details.seriesStatus,
       seriesStatusUpdatedAt: Date.now(),
@@ -128,7 +128,7 @@ export function SearchScreen() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search shows or anime…"
-          className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-400 focus:border-signal-500 focus:outline-none"
+          className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-base text-ink-100 placeholder:text-ink-400 focus:border-signal-500 focus:outline-none"
         />
         <button
           type="submit"

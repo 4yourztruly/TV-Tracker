@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import type { EpisodeInfo, TrackedShow } from '../types/show';
-import { deriveStatus, getNextEpisode, toggleEpisodeWatched, toggleSeasonWatched } from '../utils/progress';
+import { deriveStatus, getNextEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
 export type Tab = 'home' | 'search' | 'settings';
@@ -20,6 +20,8 @@ interface AppState {
   addShow: (show: TrackedShow) => void;
   removeShow: (id: string) => void;
   toggleEpisode: (id: string, season: number, episode: number) => void;
+  markEpisodeAndPriorWatched: (id: string, season: number, episode: number) => void;
+  rewatchEpisode: (id: string, season: number, episode: number) => void;
   toggleSeason: (id: string, season: number) => void;
   cacheSeasonEpisodes: (id: string, season: number, episodes: EpisodeInfo[]) => void;
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
@@ -77,7 +79,7 @@ function touch(show: TrackedShow): TrackedShow {
 }
 
 /** Applies a watched-episode change and re-derives status from it. */
-function applyWatchedChange(show: TrackedShow, watchedEpisodes: string[]): TrackedShow {
+function applyWatchedChange(show: TrackedShow, watchedEpisodes: Record<string, number>): TrackedShow {
   const updated = touch({ ...show, watchedEpisodes });
   return { ...updated, status: deriveStatus(updated) };
 }
@@ -98,6 +100,24 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           shows: s.shows.map((sh) =>
             sh.id === id ? applyWatchedChange(sh, toggleEpisodeWatched(sh, season, episode)) : sh
+          ),
+        })),
+
+      markEpisodeAndPriorWatched: (id, season, episode) =>
+        set((s) => ({
+          shows: s.shows.map((sh) =>
+            sh.id === id
+              ? applyWatchedChange(sh, markEpisodeAndPriorWatched(sh, season, episode))
+              : sh
+          ),
+        })),
+
+      rewatchEpisode: (id, season, episode) =>
+        set((s) => ({
+          shows: s.shows.map((sh) =>
+            sh.id === id
+              ? applyWatchedChange(sh, incrementEpisodeWatchCount(sh, season, episode))
+              : sh
           ),
         })),
 

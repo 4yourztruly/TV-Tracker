@@ -1,5 +1,6 @@
 import type { TrackerData } from '../types/show';
 import { isValidTrackerData } from '../api/drive';
+import { migrateLegacyTrackerData } from './migrateLegacyData';
 
 /** Triggers a browser download of the current tracker data as JSON.
  * Since the Drive appData storage is hidden from the user by design,
@@ -27,11 +28,15 @@ export function importTrackerData(file: File): Promise<TrackerData> {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result as string);
-        if (!isValidTrackerData(parsed)) {
+        // Older exports (pointer-only or plain watched-array shape) need
+        // to be normalized to the current watch-count map shape before
+        // validation, same as the Drive-load and persisted-store paths.
+        const migrated = migrateLegacyTrackerData(parsed as { shows?: unknown });
+        if (!isValidTrackerData(migrated)) {
           reject(new Error('This file is not a valid TV Tracker export.'));
           return;
         }
-        resolve(parsed);
+        resolve(migrated);
       } catch (err) {
         reject(new Error('Could not parse file as JSON.'));
       }

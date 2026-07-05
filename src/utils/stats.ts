@@ -1,5 +1,5 @@
 import type { TrackedShow } from '../types/show';
-import { getWatchedEpisodeCount } from './progress';
+import { getWatchedEpisodeCount, getTotalWatchInstances } from './progress';
 
 /** Used when a show's source API doesn't report an episode runtime
  * (TMDB's episode_run_time and Jikan's duration can both be missing).
@@ -23,8 +23,12 @@ export function computeWatchStats(shows: TrackedShow[]): WatchStats {
 
   for (const show of shows) {
     const watched = getWatchedEpisodeCount(show);
+    // Total watch time counts every viewing, including rewatches — an
+    // episode watched 3 times contributes 3x its runtime — while the
+    // "episodes watched" count above stays a distinct-episode count.
+    const totalInstances = getTotalWatchInstances(show);
     totalEpisodesWatched += watched;
-    totalMinutesWatched += watched * (show.episodeRuntimeMinutes ?? DEFAULT_RUNTIME_MINUTES);
+    totalMinutesWatched += totalInstances * (show.episodeRuntimeMinutes ?? DEFAULT_RUNTIME_MINUTES);
 
     if (show.status === 'watching') showsWatching += 1;
     else if (show.status === 'completed') showsCompleted += 1;
