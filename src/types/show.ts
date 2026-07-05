@@ -57,6 +57,13 @@ export interface TrackedShow {
   /** Genre names, when the source API reports them. */
   genres?: string[];
 
+  /** IMDb rating (e.g. "8.4"), fetched once when the show is added and
+   * cached here so it isn't re-fetched from OMDb every time the show
+   * is viewed. `undefined` means never checked (e.g. tracked before
+   * this field existed); `null` means checked and OMDb had no rating
+   * for it — both are backfilled/left alone rather than retried. */
+  imdbRating?: string | null;
+
   seasons: SeasonSummary[];
 
   notes?: string;

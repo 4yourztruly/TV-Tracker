@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Star } from 'lucide-react';
 import type { SearchResult, TrackedShow } from '../types/show';
 import { searchAll, getShowDetails } from '../api/search';
+import { getImdbRating } from '../api/omdb';
+import { getTopRatedShows, type TopRatedEntry } from '../api/topRated';
 import { useAppStore } from '../store/store';
 import { syncToDrive } from '../store/sync';
 import { ImdbRating } from '../components/ImdbRating';
@@ -15,6 +18,20 @@ export function SearchScreen() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Shown below the search bar when it's empty — a browse grid, not a
+  // search result. Fetched once and kept for the component's lifetime
+  // rather than re-fetched each time the search box is cleared.
+  const [topRated, setTopRated] = useState<TopRatedEntry[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getTopRatedShows().then((entries) => {
+      if (!cancelled) setTopRated(entries);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Each row's IMDb rating reports in once its lookup settles, so the
   // whole results list can be held behind a spinner and revealed all
@@ -69,7 +86,13 @@ export function SearchScreen() {
   }
 
   async function buildTrackedShow(result: SearchResult): Promise<TrackedShow> {
-    const details = await getShowDetails(result.source, result.sourceId);
+    // Fetched together (not sequentially) — and the rating is cached on
+    // the show going forward, so this is the only OMDb lookup it'll
+    // ever need instead of one every time it's viewed.
+    const [details, imdbRating] = await Promise.all([
+      getShowDetails(result.source, result.sourceId),
+      getImdbRating(result.title, result.year),
+    ]);
     return {
       id: crypto.randomUUID(),
       source: result.source,
@@ -85,6 +108,7 @@ export function SearchScreen() {
       seriesStatusVersion: 2,
       episodeRuntimeMinutes: details.episodeRuntimeMinutes,
       genres: details.genres,
+      imdbRating,
       seasons: details.seasons,
       addedAt: Date.now(),
       updatedAt: Date.now(),
@@ -153,6 +177,57 @@ export function SearchScreen() {
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
+      {!query.trim() && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+            Top Rated
+          </h2>
+          {topRated === null ? (
+            <div className="flex items-center justify-center py-10">
+              <Spinner size={32} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {topRated.map((entry) => {
+                const result = entry.result;
+                const key = `${result.source}-${result.sourceId}`;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleOpenDetails(result)}
+                    className="group flex flex-col gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500 focus-visible:outline-offset-2 rounded-lg"
+                  >
+                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-inset ring-ink-800 transition-transform group-active:scale-[0.97]">
+                      {result.posterUrl ? (
+                        <img
+                          src={result.posterUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-ink-500">
+                          {result.title}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <p className="min-w-0 flex-1 truncate text-xs font-medium text-ink-200">
+                        {result.title}
+                      </p>
+                      <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-signal-500">
+                        <Star className="h-2.5 w-2.5 fill-current" />
+                        {entry.imdbRating}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {results.length > 0 && (
         <div className="relative min-h-18">
           {!ratingsReady && (
@@ -163,7 +238,8 @@ export function SearchScreen() {
           <div className={`flex flex-col gap-2 ${ratingsReady ? '' : 'invisible'}`}>
             {results.map((result) => {
               const key = `${result.source}-${result.sourceId}`;
-              const tracked = !!existingTrackedShow(result);
+              const existing = existingTrackedShow(result);
+              const tracked = !!existing;
               return (
                 <div
                   key={key}
@@ -190,6 +266,7 @@ export function SearchScreen() {
                         <ImdbRating
                           title={result.title}
                           year={result.year}
+                          knownRating={existing?.imdbRating}
                           onReady={() => markRatingReady(key)}
                         />
                       )}

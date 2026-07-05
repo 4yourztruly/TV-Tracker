@@ -6,9 +6,15 @@ interface Props {
   title: string;
   year?: string;
   className?: string;
-  /** Called once the rating lookup settles (found or not), so a parent
-   * can hold a loading spinner over a whole list of these until every
-   * rating is in, instead of ratings popping in one at a time. */
+  /** A rating already on hand (e.g. from a tracked show's cached
+   * `imdbRating`) — skips the OMDb lookup entirely when provided.
+   * `null` means "already checked, no rating"; leave unset to have
+   * this component fetch it itself. */
+  knownRating?: string | null;
+  /** Called once the rating settles (found, not found, or supplied via
+   * `knownRating`), so a parent can hold a loading spinner over a
+   * whole list of these until every rating is in, instead of ratings
+   * popping in one at a time. */
   onReady?: () => void;
 }
 
@@ -17,22 +23,29 @@ interface Props {
  * match, thin anime coverage, etc.) — this is supplementary info, so
  * it fails silently rather than showing a loading flicker or an empty
  * state that competes with the show's own data. */
-export function ImdbRating({ title, year, className = '', onReady }: Props) {
-  const [rating, setRating] = useState<string | null>(null);
+export function ImdbRating({ title, year, className = '', knownRating, onReady }: Props) {
+  const [rating, setRating] = useState<string | null>(knownRating ?? null);
+  const hasKnownRating = knownRating !== undefined;
 
   useEffect(() => {
+    if (hasKnownRating) {
+      setRating(knownRating);
+      onReady?.();
+      return;
+    }
+
     let cancelled = false;
     setRating(null);
     getImdbRating(title, year).then((r) => {
       if (cancelled) return;
-      setRating(r);
+      setRating(r ?? null); // undefined (transient failure) just means no badge here
       onReady?.();
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, year]);
+  }, [title, year, hasKnownRating, knownRating]);
 
   if (!rating) return null;
 

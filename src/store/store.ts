@@ -33,6 +33,7 @@ interface AppState {
   cacheSeasonEpisodes: (id: string, season: number, episodes: EpisodeInfo[]) => void;
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
   backfillGenres: (id: string, genres: string[]) => void;
+  backfillImdbRating: (id: string, imdbRating: string | null) => void;
   markNextEpisodeWatched: (id: string) => void;
   setShowStatus: (id: string, status: TrackedShow['status']) => void;
   setShowNotes: (id: string, notes: string) => void;
@@ -168,6 +169,14 @@ export const useAppStore = create<AppState>()(
       backfillGenres: (id, genres) =>
         set((s) => ({
           shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, genres }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern as genres, for shows tracked
+      // before `imdbRating` was cached on TrackedShow instead of being
+      // re-fetched from OMDb on every view.
+      backfillImdbRating: (id, imdbRating) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, imdbRating }) : sh)),
         })),
 
       // Quick-action from the home screen card: marks whatever the

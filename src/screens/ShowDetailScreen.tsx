@@ -38,6 +38,7 @@ export function ShowDetailScreen() {
   const setShowStatus = useAppStore((s) => s.setShowStatus);
   const removeShow = useAppStore((s) => s.removeShow);
   const backfillGenres = useAppStore((s) => s.backfillGenres);
+  const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
 
   // Pending confirmation prompts. skipPrompt: the user tapped an
   // unwatched episode that has unwatched episodes before it — ask
@@ -60,35 +61,28 @@ export function ShowDetailScreen() {
   const isPreview = !trackedShow && !!previewShow;
   const show = trackedShow ?? previewShow;
 
-  // The rest of the show's data (bio, episode count, seasons, ...) is
-  // already loaded synchronously by the time this screen mounts. The
-  // IMDb rating is the one piece fetched here, so the whole body waits
-  // behind a spinner until it resolves rather than popping in late.
-  const [imdbRating, setImdbRating] = useState<string | null>(null);
-  const [imdbReady, setImdbReady] = useState(false);
-  const showTitle = show?.title;
+  // The show's data (bio, episode count, seasons, genres, IMDb rating,
+  // ...) is all loaded synchronously by the time this screen mounts —
+  // preview shows are built fresh from the API before being shown, and
+  // tracked shows already carry it from when they were added. The
+  // whole body waits behind a spinner only for the rare legacy case
+  // below (a show tracked before one of these fields was cached),
+  // rather than ever popping fields in late on a normal view.
+  const imdbRating = show?.imdbRating ?? null;
+  // Separate from `show.imdbRating` itself: a transient OMDb failure
+  // (rate limit, network) deliberately isn't persisted (see the
+  // backfill effect below), so waiting on `imdbRating !== undefined`
+  // alone would spin forever during an outage. This flips once the
+  // one backfill attempt below has settled, success or not.
+  const [imdbCheckAttempted, setImdbCheckAttempted] = useState(false);
+  const imdbReady = show == null || show.imdbRating !== undefined || imdbCheckAttempted;
 
-  useEffect(() => {
-    if (!showTitle) return;
-    let cancelled = false;
-    setImdbReady(false);
-    setImdbRating(null);
-    getImdbRating(showTitle).then((rating) => {
-      if (cancelled) return;
-      setImdbRating(rating);
-      setImdbReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [showTitle]);
-
-  // One-time backfill for a tracked show that predates `genres`
-  // existing on TrackedShow. `undefined` means "never checked";
-  // backfillGenres always sets at least `[]`, so a show with
-  // genuinely no genres from its source is marked "checked" and this
-  // doesn't refetch it forever. Doesn't apply to preview shows — those
-  // are always built fresh from the API and already have genres.
+  // One-time backfill for a tracked show that predates `genres` or
+  // `imdbRating` existing on TrackedShow. `undefined` means "never
+  // checked"; both backfill actions always set a real value (even `[]`
+  // / `null`) so a show with genuinely nothing to report is marked
+  // "checked" and isn't re-fetched forever. Doesn't apply to preview
+  // shows — those are always built fresh from the API already.
   useEffect(() => {
     if (!trackedShow || trackedShow.genres !== undefined) return;
     let cancelled = false;
@@ -105,6 +99,25 @@ export function ShowDetailScreen() {
       cancelled = true;
     };
   }, [trackedShow, backfillGenres]);
+
+  useEffect(() => {
+    if (!trackedShow || trackedShow.imdbRating !== undefined) return;
+    let cancelled = false;
+    getImdbRating(trackedShow.title).then((rating) => {
+      if (cancelled) return;
+      // Only a definite answer (found or confirmed no match) gets
+      // persisted; a transient failure (rating === undefined) is left
+      // unset so it's retried next time this show is opened.
+      if (rating !== undefined) {
+        backfillImdbRating(trackedShow.id, rating);
+        syncToDrive();
+      }
+      setImdbCheckAttempted(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackedShow, backfillImdbRating]);
 
   if (!show) return null;
 

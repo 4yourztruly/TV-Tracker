@@ -15,15 +15,28 @@ const OMDB_KEY = import.meta.env.VITE_OMDB_API_KEY as string | undefined;
 const OMDB_BASE = 'https://www.omdbapi.com/';
 
 // In-memory only — ratings don't change often enough to need Drive
-// sync or persistence, and this just avoids re-fetching the same
-// title while it stays mounted/re-rendered/scrolled past this session.
+// sync or persistence beyond TrackedShow.imdbRating itself, and this
+// just avoids re-fetching the same title twice in one session (e.g.
+// once for its search-result row, once for buildTrackedShow on Add).
+// Only confirmed results are cached here (found or confirmed no
+// match) — a transient failure is deliberately NOT cached, so it gets
+// retried rather than a temporary outage looking like "no rating"
+// forever once callers persist it onto a show.
 const ratingCache = new Map<string, string | null>();
 
-/** Resolves to the IMDb rating (e.g. "8.4") for a show title, or null
- * if unavailable for any reason (no key configured, no OMDb match, or
- * a request failure). Never throws. */
-export async function getImdbRating(title: string, year?: string): Promise<string | null> {
-  if (!OMDB_KEY) return null;
+/** Resolves to the IMDb rating (e.g. "8.4") for a show title.
+ * - A string: OMDb has a rating.
+ * - `null`: OMDb answered but confirmed no match/no rating — safe for
+ *   a caller to persist as "checked, nothing there".
+ * - `undefined`: couldn't tell (no key configured, request failed, hit
+ *   OMDb's rate limit, ...) — callers should NOT persist this as a
+ *   permanent "no rating"; leave it unset and try again later.
+ * Never throws. */
+export async function getImdbRating(
+  title: string,
+  year?: string
+): Promise<string | null | undefined> {
+  if (!OMDB_KEY) return undefined;
 
   const cacheKey = `${title.toLowerCase()}|${year ?? ''}`;
   if (ratingCache.has(cacheKey)) return ratingCache.get(cacheKey)!;
@@ -32,7 +45,12 @@ export async function getImdbRating(title: string, year?: string): Promise<strin
     const params = new URLSearchParams({ apikey: OMDB_KEY, t: title, type: 'series' });
     if (year) params.set('y', year);
     const res = await fetch(`${OMDB_BASE}?${params.toString()}`);
-    if (!res.ok) throw new Error(`OMDb lookup failed: ${res.status}`);
+    if (!res.ok) {
+      // Includes OMDb's "Request limit reached!" 401 on the free
+      // tier's daily cap — transient, not "this show has no rating".
+      console.error(`OMDb lookup failed: ${res.status}`);
+      return undefined;
+    }
     const data = await res.json();
     const rating =
       data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A'
@@ -42,7 +60,6 @@ export async function getImdbRating(title: string, year?: string): Promise<strin
     return rating;
   } catch (err) {
     console.error('OMDb rating lookup failed:', err);
-    ratingCache.set(cacheKey, null);
-    return null;
+    return undefined;
   }
 }

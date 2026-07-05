@@ -2,10 +2,20 @@ import type { EpisodeInfo, SearchResult, ShowSource, SeasonSummary, SeriesStatus
 import { searchTmdb, getTmdbShowDetails, getTmdbSeasonEpisodes } from './tmdb';
 import { searchJikan, getJikanAnimeDetails, getJikanEpisodes } from './jikan';
 
+// In-memory only, per query string — search-as-you-type means the
+// same text often gets searched again a moment later (backspacing
+// and retyping, refocusing the field, ...); this just avoids re-
+// hitting both APIs for a query already answered this session.
+const searchCache = new Map<string, SearchResult[]>();
+
 /** Runs both searches in parallel and merges results. If one source
  * fails (e.g. missing TMDB key), the other still returns results
  * rather than failing the whole search. */
 export async function searchAll(query: string): Promise<SearchResult[]> {
+  const cacheKey = query.trim().toLowerCase();
+  const cached = searchCache.get(cacheKey);
+  if (cached) return cached;
+
   const [tmdbResult, jikanResult] = await Promise.allSettled([
     searchTmdb(query),
     searchJikan(query),
@@ -17,6 +27,13 @@ export async function searchAll(query: string): Promise<SearchResult[]> {
 
   if (jikanResult.status === 'fulfilled') results.push(...jikanResult.value);
   else console.warn('Jikan search failed:', jikanResult.reason);
+
+  // Only cache when at least one source actually answered — don't
+  // lock in an empty result set from a moment where both happened to
+  // fail (e.g. Jikan's frequent rate-limit timeouts).
+  if (tmdbResult.status === 'fulfilled' || jikanResult.status === 'fulfilled') {
+    searchCache.set(cacheKey, results);
+  }
 
   return results;
 }
