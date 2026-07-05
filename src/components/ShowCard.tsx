@@ -82,23 +82,27 @@ export function ShowCard({ show }: Props) {
       onClick={() => setSelectedShow(show.id)}
       role="button"
       tabIndex={0}
-      className="flex cursor-pointer items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-3 transition-colors hover:border-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
+      className="flex cursor-pointer items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-3.5 transition-colors hover:border-ink-700 active:bg-ink-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500"
     >
       {show.posterUrl ? (
         <img
           src={show.posterUrl}
           alt=""
-          className="h-16 w-11 flex-shrink-0 rounded-md object-cover bg-ink-800"
+          className="h-20 w-14 flex-shrink-0 rounded-md object-cover bg-ink-800"
         />
       ) : (
-        <div className="h-16 w-11 flex-shrink-0 rounded-md bg-ink-800" />
+        <div className="h-20 w-14 flex-shrink-0 rounded-md bg-ink-800" />
       )}
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-ink-100">{show.title}</p>
         <div className="mt-0.5">
           {show.status === 'completed' ? (
-            <span className="text-xs font-medium text-ok-500">{finishedLabel}</span>
+            <span
+              className={`text-xs font-medium ${upToDate ? 'text-ok-500' : 'text-purple-400'}`}
+            >
+              {finishedLabel}
+            </span>
           ) : next ? (
             <>
               <div className="flex items-center text-xs text-ink-400">
@@ -114,7 +118,9 @@ export function ShowCard({ show }: Props) {
               )}
             </>
           ) : (
-            <span className="text-xs text-ok-500">{caughtUpLabel}</span>
+            <span className={`text-xs ${upToDate ? 'text-ok-500' : 'text-purple-400'}`}>
+              {caughtUpLabel}
+            </span>
           )}
         </div>
       </div>
@@ -123,9 +129,9 @@ export function ShowCard({ show }: Props) {
         <button
           onClick={handleCheck}
           aria-label="Mark episode watched"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-ink-600 text-ink-400 transition-colors hover:border-signal-500 hover:text-signal-500"
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2 border-ink-600 text-ink-400 transition-colors hover:border-signal-500 hover:text-signal-500 active:scale-95"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3">
             <path d="M4 12.5L9.5 18L20 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>

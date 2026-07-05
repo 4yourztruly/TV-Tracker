@@ -15,7 +15,10 @@
   --color-signal-500: #ff8a4c; /* warm amber-orange: "next up" accent */
   --color-signal-600: #eb6f2d;
 
-  --color-ok-500: #4ade80; /* completed */
+  --color-ok-500: #4ade80; /* up to date / caught up while show is ongoing */
+  --color-purple-500: #a78bfa; /* fully completed (show or user marked done) */
+  --color-purple-600: #8b5cf6;
+  --color-warn-500: #facc15; /* in-progress poster bar */
 
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
@@ -29,4 +32,7 @@ body {
   background: var(--color-ink-950);
   color: var(--color-ink-100);
   font-family: var(--font-body);
+  /* Prevent the iOS "bounce" from revealing white space past the safe
+     areas when the app is running standalone (added to home screen). */
+  overscroll-behavior-y: none;
 }

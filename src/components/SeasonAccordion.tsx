@@ -40,13 +40,16 @@ export function SeasonAccordion({ show, season, onToggleEpisode, onToggleSeason 
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-900">
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <button onClick={toggle} className="flex flex-1 items-center justify-between text-left">
+      <div className="flex items-center gap-2 px-2 py-2">
+        <button
+          onClick={toggle}
+          className="flex min-h-11 flex-1 items-center justify-between rounded-lg px-1 text-left active:bg-ink-800/60"
+        >
           <span className="text-sm font-medium text-ink-100">
             Season {season.season}
             <span className="ml-2 text-xs text-ink-400">{season.episodeCount} episodes</span>
           </span>
-          <span className="ml-2 text-ink-400">{expanded ? '\u2212' : '+'}</span>
+          <span className="ml-2 text-lg leading-none text-ink-400">{expanded ? '\u2212' : '+'}</span>
         </button>
         <button
           onClick={(e) => {
@@ -54,13 +57,13 @@ export function SeasonAccordion({ show, season, onToggleEpisode, onToggleSeason 
             onToggleSeason(season.season);
           }}
           aria-label={seasonWatched ? 'Mark season unwatched' : 'Mark whole season watched'}
-          className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
             seasonWatched
               ? 'border-ok-500 bg-ok-500/10 text-ok-500'
               : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
           }`}
         >
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3">
             <path d="M4 12.5L9.5 18L20 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -76,7 +79,7 @@ export function SeasonAccordion({ show, season, onToggleEpisode, onToggleSeason 
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs ${
                     isNext ? 'bg-ink-800/60' : ''
                   }`}
                 >
@@ -90,7 +93,7 @@ export function SeasonAccordion({ show, season, onToggleEpisode, onToggleSeason 
                   <button
                     onClick={() => onToggleEpisode(season.season, ep.episode)}
                     aria-label={watched ? 'Mark episode unwatched' : 'Mark episode watched'}
-                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
                       watched
                         ? 'border-ok-500 bg-ok-500/10 text-ok-500'
                         : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
@@ -98,7 +101,7 @@ export function SeasonAccordion({ show, season, onToggleEpisode, onToggleSeason 
                   >
                     <svg
                       viewBox="0 0 24 24"
-                      className="h-3 w-3"
+                      className="h-4 w-4"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="3"

@@ -53,6 +53,13 @@ interface AppState {
   setLastSyncedAt: (ts: number | null) => void;
   syncStatus: SyncStatus;
   setSyncStatus: (status: SyncStatus) => void;
+
+  // --- home screen display preference ---
+  /** 'list' is the grouped, detail-row layout; 'grid' is the
+   * posters-only layout with a progress bar per poster. Persisted as a
+   * plain display preference (not a credential), same as driveSyncEnabled. */
+  homeViewMode: 'list' | 'grid';
+  setHomeViewMode: (mode: 'list' | 'grid') => void;
 }
 
 // idb-keyval backed storage adapter so Zustand's persist middleware can
@@ -162,6 +169,9 @@ export const useAppStore = create<AppState>()(
       setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
       syncStatus: 'idle',
       setSyncStatus: (status) => set({ syncStatus: status }),
+
+      homeViewMode: 'list',
+      setHomeViewMode: (mode) => set({ homeViewMode: mode }),
     }),
     {
       name: 'tv-tracker-storage',
@@ -177,6 +187,7 @@ export const useAppStore = create<AppState>()(
         shows: state.shows,
         lastSyncedAt: state.lastSyncedAt,
         driveSyncEnabled: state.driveSyncEnabled,
+        homeViewMode: state.homeViewMode,
       }),
       // Bumped for the watchedEpisodes migration — upgrades anyone
       // rehydrating from an older locally-persisted copy.

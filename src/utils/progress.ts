@@ -102,6 +102,36 @@ export function toggleSeasonWatched(show: TrackedShow, season: number): string[]
   return [...withoutSeason, ...seasonKeys];
 }
 
+export interface PosterProgress {
+  /** 0–1 fill amount for the poster's progress bar. */
+  fraction: number;
+  /** purple = fully completed; green = caught up on an ongoing show;
+   * yellow = partway through; none = nothing watched yet. */
+  color: 'purple' | 'green' | 'yellow' | 'none';
+}
+
+/** Summarizes a show's watch progress for the grid view's poster bar.
+ * Mirrors the same "completed vs. up to date vs. in progress" logic
+ * ShowCard uses for its text label, just expressed as a fill + color. */
+export function getPosterProgress(show: TrackedShow): PosterProgress {
+  const upToDate = isShowUpToDate(show);
+  const trulyCompleted = show.status === 'completed' && !upToDate;
+
+  if (trulyCompleted) return { fraction: 1, color: 'purple' };
+  if (upToDate) return { fraction: 1, color: 'green' };
+
+  const watched = getWatchedEpisodeCount(show);
+  if (watched === 0) return { fraction: 0, color: 'none' };
+
+  if (show.totalEpisodes && show.totalEpisodes > 0) {
+    return { fraction: Math.min(watched / show.totalEpisodes, 1), color: 'yellow' };
+  }
+  // Total episode count unknown (common for airing anime) — still show
+  // a sliver so "started but total unknown" reads differently from
+  // "nothing watched," without implying a fraction we don't actually know.
+  return { fraction: 0.08, color: 'yellow' };
+}
+
 export function isSeasonFullyWatched(show: TrackedShow, season: number): boolean {
   const seasonInfo = show.seasons.find((s) => s.season === season);
   if (!seasonInfo || seasonInfo.episodeCount === 0) return false;
