@@ -21,9 +21,11 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
   const next = getNextEpisode(show);
 
   async function toggle() {
-    const next = !expanded;
-    setExpanded(next);
-    if (next && episodes === null) {
+    const willExpand = !expanded;
+    setExpanded(willExpand);
+    if (!willExpand) return;
+
+    if (episodes === null) {
       setLoading(true);
       try {
         const eps = await getSeasonEpisodes(show.source, show.sourceId, season.season);
@@ -34,6 +36,24 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
         setEpisodes([]);
       } finally {
         setLoading(false);
+      }
+      return;
+    }
+
+    // Episodes cached before per-episode stills were added won't have
+    // `imageUrl` even for TMDB shows that do have them. If none of the
+    // cached episodes have one, silently recheck once — if fresher
+    // data has images, swap it in. No loading state: this is a quiet
+    // correction, not the initial fetch.
+    if (show.source === 'tmdb' && episodes.length > 0 && episodes.every((ep) => !ep.imageUrl)) {
+      try {
+        const eps = await getSeasonEpisodes(show.source, show.sourceId, season.season);
+        if (eps.some((ep) => ep.imageUrl)) {
+          setEpisodes(eps);
+          cacheSeasonEpisodes(show.id, season.season, eps);
+        }
+      } catch (err) {
+        console.error('Failed to refresh episode images:', err);
       }
     }
   }
@@ -76,13 +96,16 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
       </div>
 
       {expanded && (
-        <div className="border-t border-ink-800 px-1 py-1">
+        // Left/top/bottom padding removed to give episode stills more
+        // room. (Was `px-1 py-1`.)
+        <div className="border-t border-ink-800 pr-1">
           {loading && <p className="px-2 py-2 text-xs text-ink-400">Loading episodes…</p>}
           {!loading &&
-            episodes?.map((ep) => {
+            episodes?.map((ep, idx) => {
               const watched = isEpisodeWatched(show, season.season, ep.episode);
               const watchCount = getEpisodeWatchCount(show, season.season, ep.episode);
               const isNext = next?.season === season.season && next?.episode === ep.episode;
+              const isLast = idx === episodes.length - 1;
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
@@ -91,10 +114,13 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
                   } ${isNext ? 'bg-ink-800/60' : ''}`}
                 >
                   {show.source === 'tmdb' && ep.imageUrl && (
+                    // Was `h-16 w-28` before sizing these up. Last row
+                    // gets a rounded bottom-left corner to match the
+                    // season card's own rounded-lg corner behind it.
                     <img
                       src={ep.imageUrl}
                       alt=""
-                      className="h-16 w-28 flex-shrink-0 self-stretch object-cover"
+                      className={`h-24 w-40 flex-shrink-0 self-stretch object-cover ${isLast ? 'rounded-bl-lg' : ''}`}
                     />
                   )}
                   <span className="flex-shrink-0 self-center py-2.5 text-ink-400">

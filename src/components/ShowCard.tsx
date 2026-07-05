@@ -24,6 +24,7 @@ export function ShowCard({ show, onReady }: Props) {
   const markNextEpisodeWatched = useAppStore((s) => s.markNextEpisodeWatched);
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
   const updateSeriesStatus = useAppStore((s) => s.updateSeriesStatus);
+  const backfillGenres = useAppStore((s) => s.backfillGenres);
 
   const next = getNextEpisode(show);
   const left = getEpisodesLeft(show);
@@ -106,6 +107,30 @@ export function ShowCard({ show, onReady }: Props) {
       cancelled = true;
     };
   }, [show, updateSeriesStatus]);
+
+  // One-time backfill for shows tracked before `genres` existed on
+  // TrackedShow. `undefined` means "never checked"; backfillGenres
+  // always sets at least `[]`, so a show with genuinely no genres
+  // from its source is marked "checked" and this doesn't refetch it
+  // forever.
+  useEffect(() => {
+    if (show.genres !== undefined) return;
+
+    let cancelled = false;
+    getShowDetails(show.source, show.sourceId)
+      .then((details) => {
+        if (cancelled) return;
+        backfillGenres(show.id, details.genres ?? []);
+        syncToDrive();
+      })
+      .catch((err) => {
+        console.error("Failed to backfill genres:", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [show.id, show.source, show.sourceId, show.genres, backfillGenres]);
 
   // True while the green "watched" wipe is sweeping across the card.
   // The checkmark button is disabled for the duration so a second tap

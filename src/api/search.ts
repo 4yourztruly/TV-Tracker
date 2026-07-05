@@ -1,4 +1,4 @@
-import type { SearchResult, ShowSource, SeasonSummary, SeriesStatus } from '../types/show';
+import type { EpisodeInfo, SearchResult, ShowSource, SeasonSummary, SeriesStatus } from '../types/show';
 import { searchTmdb, getTmdbShowDetails, getTmdbSeasonEpisodes } from './tmdb';
 import { searchJikan, getJikanAnimeDetails, getJikanEpisodes } from './jikan';
 
@@ -46,9 +46,9 @@ export async function getSeasonEpisodes(
   source: ShowSource,
   sourceId: number,
   season: number
-) {
+): Promise<EpisodeInfo[]> {
   if (source === 'tmdb') return getTmdbSeasonEpisodes(sourceId, season);
-  const episodes = [];
+  const episodes: EpisodeInfo[] = [];
   let page = 1;
   let hasNextPage = true;
   while (hasNextPage) {

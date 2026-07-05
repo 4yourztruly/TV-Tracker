@@ -4,7 +4,9 @@
       "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5174 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess\")",
       "Bash(powershell -Command \"Stop-Process -Id 34204 -Force\")",
       "Bash(npx tsc *)",
-      "Bash(npx oxlint *)"
+      "Bash(npx oxlint *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Stop-Process -Id 22468 -Force\")"
     ]
   }
 }

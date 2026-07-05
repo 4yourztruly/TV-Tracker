@@ -32,6 +32,7 @@ interface AppState {
   toggleSeason: (id: string, season: number) => void;
   cacheSeasonEpisodes: (id: string, season: number, episodes: EpisodeInfo[]) => void;
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
+  backfillGenres: (id: string, genres: string[]) => void;
   markNextEpisodeWatched: (id: string) => void;
   setShowStatus: (id: string, status: TrackedShow['status']) => void;
   setShowNotes: (id: string, notes: string) => void;
@@ -158,6 +159,15 @@ export const useAppStore = create<AppState>()(
               ? touch({ ...sh, seriesStatus, seriesStatusUpdatedAt: Date.now(), seriesStatusVersion: 2 })
               : sh
           ),
+        })),
+
+      // One-time backfill for shows tracked before `genres` existed on
+      // TrackedShow. Always sets it (even to []) so a show with
+      // genuinely no genres from its source is marked "checked" and
+      // isn't re-fetched forever.
+      backfillGenres: (id, genres) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, genres }) : sh)),
         })),
 
       // Quick-action from the home screen card: marks whatever the

@@ -5,6 +5,7 @@ import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
+import { getShowDetails } from '../api/search';
 import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
@@ -36,6 +37,7 @@ export function ShowDetailScreen() {
   const toggleSeason = useAppStore((s) => s.toggleSeason);
   const setShowStatus = useAppStore((s) => s.setShowStatus);
   const removeShow = useAppStore((s) => s.removeShow);
+  const backfillGenres = useAppStore((s) => s.backfillGenres);
 
   // Pending confirmation prompts. skipPrompt: the user tapped an
   // unwatched episode that has unwatched episodes before it — ask
@@ -80,6 +82,29 @@ export function ShowDetailScreen() {
       cancelled = true;
     };
   }, [showTitle]);
+
+  // One-time backfill for a tracked show that predates `genres`
+  // existing on TrackedShow. `undefined` means "never checked";
+  // backfillGenres always sets at least `[]`, so a show with
+  // genuinely no genres from its source is marked "checked" and this
+  // doesn't refetch it forever. Doesn't apply to preview shows — those
+  // are always built fresh from the API and already have genres.
+  useEffect(() => {
+    if (!trackedShow || trackedShow.genres !== undefined) return;
+    let cancelled = false;
+    getShowDetails(trackedShow.source, trackedShow.sourceId)
+      .then((details) => {
+        if (cancelled) return;
+        backfillGenres(trackedShow.id, details.genres ?? []);
+        syncToDrive();
+      })
+      .catch((err) => {
+        console.error('Failed to backfill genres:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackedShow, backfillGenres]);
 
   if (!show) return null;
 
@@ -283,11 +308,6 @@ export function ShowDetailScreen() {
                 )}
                 {show.genres && show.genres.length > 0 && (
                   <p className="text-xs text-ink-400">{show.genres.join(', ')}</p>
-                )}
-                {isPreview && (
-                  <p className="text-xs text-ink-400">
-                    Check an episode or season below to add &amp; start tracking.
-                  </p>
                 )}
               </div>
             </div>
