@@ -86,24 +86,17 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
-                  className={`flex w-full items-stretch gap-2 overflow-hidden rounded-md text-left text-xs ${
-                    show.source !== 'tmdb' ? 'pl-2' : ''
+                  className={`flex w-full items-stretch gap-2 overflow-hidden text-left text-xs ${
+                    show.source !== 'tmdb' || !ep.imageUrl ? 'pl-2' : ''
                   } ${isNext ? 'bg-ink-800/60' : ''}`}
                 >
-                  {show.source === 'tmdb' &&
-                    (ep.imageUrl ? (
-                      <img
-                        src={ep.imageUrl}
-                        alt=""
-                        className="h-16 w-28 flex-shrink-0 self-stretch object-cover"
-                      />
-                    ) : (
-                      // No still available for this episode (common —
-                      // TMDB doesn't have images for every episode).
-                      // Blend into the row instead of a visible empty
-                      // box so it doesn't stick out.
-                      <div className="h-16 w-28 flex-shrink-0 self-stretch bg-ink-900" />
-                    ))}
+                  {show.source === 'tmdb' && ep.imageUrl && (
+                    <img
+                      src={ep.imageUrl}
+                      alt=""
+                      className="h-16 w-28 flex-shrink-0 self-stretch object-cover"
+                    />
+                  )}
                   <span className="flex-shrink-0 self-center py-2.5 text-ink-400">
                     E{ep.episode}
                   </span>
