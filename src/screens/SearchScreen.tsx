@@ -74,6 +74,7 @@ export function SearchScreen() {
       seriesStatusUpdatedAt: Date.now(),
       seriesStatusVersion: 2,
       episodeRuntimeMinutes: details.episodeRuntimeMinutes,
+      genres: details.genres,
       seasons: details.seasons,
       addedAt: Date.now(),
       updatedAt: Date.now(),

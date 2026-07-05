@@ -104,10 +104,10 @@ export default function App() {
   }, [setGoogleAuthReady, setSignedIn]);
 
   return (
-    <div className="flex min-h-screen w-full justify-center bg-ink-950">
-      <div className="flex h-screen w-full max-w-[480px] flex-col md:border-x md:border-ink-800">
+    <div className="flex min-h-dvh w-full justify-center bg-ink-950">
+      <div className="flex h-dvh w-full max-w-[480px] flex-col md:border-x md:border-ink-800">
         <Header />
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto">
           {activeTab === 'home' && <HomeScreen />}
           {activeTab === 'search' && <SearchScreen />}
           {activeTab === 'settings' && <SettingsScreen />}

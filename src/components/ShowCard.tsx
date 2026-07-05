@@ -12,9 +12,14 @@ import { getSeasonEpisodes, getShowDetails } from "../api/search";
 
 interface Props {
   show: TrackedShow;
+  /** Called once this card's async data (next-episode title, poster)
+   * has settled, so a parent can hold a loading spinner over the whole
+   * list until every card is ready instead of cards popping in one at
+   * a time. */
+  onReady?: () => void;
 }
 
-export function ShowCard({ show }: Props) {
+export function ShowCard({ show, onReady }: Props) {
   const setSelectedShow = useAppStore((s) => s.setSelectedShow);
   const markNextEpisodeWatched = useAppStore((s) => s.markNextEpisodeWatched);
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
@@ -31,11 +36,21 @@ export function ShowCard({ show }: Props) {
         ?.episodes?.find((episode) => episode.episode === next.episode)?.title
     : null;
 
+  const seasonAlreadyCached = next
+    ? !!show.seasons.find((seasonInfo) => seasonInfo.season === next.season)
+        ?.episodes
+    : true;
+  const [titleReady, setTitleReady] = useState(seasonAlreadyCached);
+  const [posterReady, setPosterReady] = useState(!show.posterUrl);
+
   useEffect(() => {
     const season = next
       ? show.seasons.find((seasonInfo) => seasonInfo.season === next.season)
       : null;
-    if (!next || season?.episodes) return;
+    if (!next || season?.episodes) {
+      setTitleReady(true);
+      return;
+    }
 
     let cancelled = false;
     getSeasonEpisodes(show.source, show.sourceId, next.season)
@@ -44,6 +59,9 @@ export function ShowCard({ show }: Props) {
       })
       .catch((err) => {
         console.error("Failed to load card episode title:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setTitleReady(true);
       });
 
     return () => {
@@ -57,6 +75,10 @@ export function ShowCard({ show }: Props) {
     show.source,
     show.sourceId,
   ]);
+
+  useEffect(() => {
+    if (titleReady && posterReady) onReady?.();
+  }, [titleReady, posterReady, onReady]);
 
   useEffect(() => {
     const needsStatusForDisplay =
@@ -126,6 +148,8 @@ export function ShowCard({ show }: Props) {
           src={show.posterUrl}
           alt=""
           className="h-20 w-14 flex-shrink-0 rounded-md object-cover bg-ink-800"
+          onLoad={() => setPosterReady(true)}
+          onError={() => setPosterReady(true)}
         />
       ) : (
         <div className="h-20 w-14 flex-shrink-0 rounded-md bg-ink-800" />
@@ -179,10 +203,11 @@ export function ShowCard({ show }: Props) {
           disabled={isWiping}
           aria-label="Mark episode watched"
           aria-disabled={isWiping}
-          className="relative z-20 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white transition-colors active:scale-95 disabled:pointer-events-none"
+          className={`relative z-20 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 disabled:pointer-events-none ${isWiping ? "bg-transparent" : "bg-white"}`}
         >
-          {/* Hidden while the wipe plays so the button doesn't look
-              tappable during the disabled window. */}
+          {/* Hidden while the wipe plays so the whole button (circle
+              and checkmark) disappears together during the disabled
+              window. */}
           {!isWiping && (
             <svg
               viewBox="0 0 24 24"

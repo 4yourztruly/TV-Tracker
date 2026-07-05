@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { TrackedShow } from '../types/show';
 import { getPosterProgress } from '../utils/progress';
 import { useAppStore } from '../store/store';
@@ -11,11 +12,20 @@ const BAR_COLOR: Record<string, string> = {
 
 interface Props {
   show: TrackedShow;
+  /** Called once this poster's image has settled (loaded or failed),
+   * so a parent can hold a loading spinner over the whole grid until
+   * every poster is ready instead of images popping in one at a time. */
+  onReady?: () => void;
 }
 
-export function ShowPoster({ show }: Props) {
+export function ShowPoster({ show, onReady }: Props) {
   const setSelectedShow = useAppStore((s) => s.setSelectedShow);
   const progress = getPosterProgress(show);
+  const [posterReady, setPosterReady] = useState(!show.posterUrl);
+
+  useEffect(() => {
+    if (posterReady) onReady?.();
+  }, [posterReady, onReady]);
 
   return (
     <button
@@ -29,6 +39,8 @@ export function ShowPoster({ show }: Props) {
             alt=""
             className="h-full w-full object-cover"
             loading="lazy"
+            onLoad={() => setPosterReady(true)}
+            onError={() => setPosterReady(true)}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-ink-500">

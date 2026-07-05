@@ -28,6 +28,7 @@ export interface ShowDetails {
   totalEpisodes: number | null;
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
+  genres?: string[];
   seasons: SeasonSummary[];
 }
 

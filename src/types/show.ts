@@ -54,6 +54,9 @@ export interface TrackedShow {
    * one. Used to estimate total watch time in Settings > Stats. */
   episodeRuntimeMinutes?: number;
 
+  /** Genre names, when the source API reports them. */
+  genres?: string[];
+
   seasons: SeasonSummary[];
 
   notes?: string;

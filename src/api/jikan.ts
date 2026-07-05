@@ -31,6 +31,7 @@ export interface JikanAnimeDetails {
   totalEpisodes: number | null; // null if still airing / unknown on MAL
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
+  genres?: string[];
   seasons: SeasonSummary[]; // anime is usually modeled as a single "season 1" block
 }
 
@@ -121,6 +122,11 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
     seriesStatus = 'unknown';
   }
 
+  const genres: string[] | undefined =
+    Array.isArray(anime.genres) && anime.genres.length > 0
+      ? anime.genres.map((g: any) => g.name).filter(Boolean)
+      : undefined;
+
   return {
     title: anime.title,
     summary: anime.synopsis || undefined,
@@ -128,6 +134,7 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
     totalEpisodes: episodeCount,
     seriesStatus,
     episodeRuntimeMinutes: parseJikanDurationMinutes(anime.duration),
+    genres,
     seasons: [{ season: 1, episodeCount: episodeCount ?? 0 }],
   };
 }

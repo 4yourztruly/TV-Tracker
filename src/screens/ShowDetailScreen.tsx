@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Star } from 'lucide-react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ImdbRating } from '../components/ImdbRating';
+import { Spinner } from '../components/Spinner';
+import { getImdbRating } from '../api/omdb';
 import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
@@ -55,6 +57,30 @@ export function ShowDetailScreen() {
   // until the user explicitly adds it.
   const isPreview = !trackedShow && !!previewShow;
   const show = trackedShow ?? previewShow;
+
+  // The rest of the show's data (bio, episode count, seasons, ...) is
+  // already loaded synchronously by the time this screen mounts. The
+  // IMDb rating is the one piece fetched here, so the whole body waits
+  // behind a spinner until it resolves rather than popping in late.
+  const [imdbRating, setImdbRating] = useState<string | null>(null);
+  const [imdbReady, setImdbReady] = useState(false);
+  const showTitle = show?.title;
+
+  useEffect(() => {
+    if (!showTitle) return;
+    let cancelled = false;
+    setImdbReady(false);
+    setImdbRating(null);
+    getImdbRating(showTitle).then((rating) => {
+      if (cancelled) return;
+      setImdbRating(rating);
+      setImdbReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showTitle]);
+
   if (!show) return null;
 
   function handleClose() {
@@ -198,92 +224,115 @@ export function ShowDetailScreen() {
           <h2 className="truncate text-sm font-semibold text-ink-100">{show.title}</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          <div className="flex gap-4">
-            {show.posterUrl ? (
-              <img
-                src={show.posterUrl}
-                alt=""
-                className="h-32 w-22 flex-shrink-0 rounded-lg object-cover bg-ink-800"
-              />
-            ) : (
-              <div className="h-32 w-22 flex-shrink-0 rounded-lg bg-ink-800" />
-            )}
-            <div className="flex flex-col gap-2">
-              {isPreview ? (
-                <button
-                  onClick={handleAddToWatchlist}
-                  className="w-fit rounded-md bg-signal-500 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-signal-600"
-                >
-                  Add to Watchlist
-                </button>
+        {!imdbReady ? (
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner size={40} />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex gap-4">
+              {show.posterUrl ? (
+                <img
+                  src={show.posterUrl}
+                  alt=""
+                  className="h-32 w-22 flex-shrink-0 rounded-lg object-cover bg-ink-800"
+                />
               ) : (
-                <div className="flex gap-1.5">
-                  {STATUS_OPTIONS.map((opt) => {
-                    const label =
-                      opt.value === 'completed' && show.seriesStatus === 'ongoing'
-                        ? 'Up to date'
-                        : opt.label;
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => handleStatusChange(opt.value)}
-                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                          show.status === opt.value
-                            ? 'bg-signal-500 text-ink-950'
-                            : 'border border-ink-700 text-ink-300'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <div className="h-32 w-22 flex-shrink-0 rounded-lg bg-ink-800" />
               )}
-              <p className="text-xs text-ink-400">
-                {show.totalEpisodes != null
-                  ? `${show.totalEpisodes} total episodes`
-                  : 'Episode count unknown (still airing)'}
-              </p>
-              {isPreview && (
+              <div className="flex flex-col gap-2">
+                {isPreview ? (
+                  <button
+                    onClick={handleAddToWatchlist}
+                    className="w-fit rounded-md bg-signal-500 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-signal-600"
+                  >
+                    Add to Watchlist
+                  </button>
+                ) : (
+                  <div className="flex gap-1.5">
+                    {STATUS_OPTIONS.map((opt) => {
+                      const label =
+                        opt.value === 'completed' && show.seriesStatus === 'ongoing'
+                          ? 'Up to date'
+                          : opt.label;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleStatusChange(opt.value)}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                            show.status === opt.value
+                              ? 'bg-signal-500 text-ink-950'
+                              : 'border border-ink-700 text-ink-300'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="text-xs text-ink-400">
-                  Check an episode or season below to add &amp; start tracking.
+                  {show.totalEpisodes != null
+                    ? `${show.totalEpisodes} total episodes`
+                    : 'Episode count unknown (still airing)'}
                 </p>
+                {show.episodeRuntimeMinutes != null && (
+                  <p className="text-xs text-ink-400">
+                    {show.episodeRuntimeMinutes} min per episode
+                  </p>
+                )}
+                {show.genres && show.genres.length > 0 && (
+                  <p className="text-xs text-ink-400">{show.genres.join(', ')}</p>
+                )}
+                {isPreview && (
+                  <p className="text-xs text-ink-400">
+                    Check an episode or season below to add &amp; start tracking.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <h3 className="min-w-0 truncate text-base font-semibold text-ink-100">
+                {show.title}
+              </h3>
+              {imdbRating && (
+                <span className="inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-semibold text-signal-500">
+                  <Star className="h-3 w-3 fill-current" />
+                  {imdbRating}
+                </span>
               )}
             </div>
+
+            {show.summary && (
+              <p className="mt-1 text-sm leading-relaxed text-ink-200">{show.summary}</p>
+            )}
+
+            <div className="mt-6 flex flex-col gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+                Seasons
+              </h3>
+              {show.seasons.map((season) => (
+                <SeasonAccordion
+                  key={season.season}
+                  show={show}
+                  season={season}
+                  onEpisodeCheckboxClick={handleEpisodeCheckboxClick}
+                  onToggleSeason={handleToggleSeason}
+                />
+              ))}
+            </div>
+
+            {!isPreview && (
+              <button
+                onClick={handleRemove}
+                className="mt-8 min-h-12 w-full rounded-lg border border-ink-800 py-2 text-xs font-medium text-red-400 hover:border-red-400"
+              >
+                Remove from tracker
+              </button>
+            )}
           </div>
-
-          <div className="mt-4 flex items-center gap-2">
-            <h3 className="min-w-0 truncate text-base font-semibold text-ink-100">{show.title}</h3>
-            <ImdbRating title={show.title} />
-          </div>
-
-          {show.summary && (
-            <p className="mt-1 text-sm leading-relaxed text-ink-200">{show.summary}</p>
-          )}
-
-          <div className="mt-6 flex flex-col gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Seasons</h3>
-            {show.seasons.map((season) => (
-              <SeasonAccordion
-                key={season.season}
-                show={show}
-                season={season}
-                onEpisodeCheckboxClick={handleEpisodeCheckboxClick}
-                onToggleSeason={handleToggleSeason}
-              />
-            ))}
-          </div>
-
-          {!isPreview && (
-            <button
-              onClick={handleRemove}
-              className="mt-8 min-h-12 w-full rounded-lg border border-ink-800 py-2 text-xs font-medium text-red-400 hover:border-red-400"
-            >
-              Remove from tracker
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {skipPrompt && (

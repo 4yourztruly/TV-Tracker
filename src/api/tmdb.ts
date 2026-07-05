@@ -45,6 +45,7 @@ export interface TmdbShowDetails {
   totalEpisodes: number | null;
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
+  genres?: string[];
   seasons: SeasonSummary[];
 }
 
@@ -79,6 +80,11 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
       ? data.episode_run_time[0]
       : undefined;
 
+  const genres: string[] | undefined =
+    Array.isArray(data.genres) && data.genres.length > 0
+      ? data.genres.map((g: any) => g.name).filter(Boolean)
+      : undefined;
+
   return {
     title: data.name,
     summary: data.overview || undefined,
@@ -86,6 +92,7 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
     totalEpisodes: typeof data.number_of_episodes === 'number' ? data.number_of_episodes : null,
     seriesStatus: mapTmdbSeriesStatus(data.status),
     episodeRuntimeMinutes,
+    genres,
     seasons,
   };
 }
