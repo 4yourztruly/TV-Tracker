@@ -43,6 +43,10 @@ export function ShowDetailScreen() {
   const [rewatchPrompt, setRewatchPrompt] = useState<{ season: number; episode: number } | null>(
     null
   );
+  // Confirms permanently removing the show from the tracker. Uses the
+  // same styled ConfirmDialog as the episode prompts instead of the
+  // native browser confirm(), which looks jarringly out of place.
+  const [showRemovePrompt, setShowRemovePrompt] = useState(false);
 
   const trackedShow = shows.find((s) => s.id === selectedShowId);
   // Preview mode: viewing a search result's details before it's been
@@ -169,11 +173,14 @@ export function ShowDetailScreen() {
   }
 
   function handleRemove() {
-    if (confirm(`Remove "${show!.title}" from your tracker?`)) {
-      removeShow(show!.id);
-      syncToDrive();
-      handleClose();
-    }
+    setShowRemovePrompt(true);
+  }
+
+  function handleConfirmRemove() {
+    removeShow(show!.id);
+    syncToDrive();
+    setShowRemovePrompt(false);
+    handleClose();
   }
 
   return (
@@ -309,6 +316,16 @@ export function ShowDetailScreen() {
               onClick: handleConfirmRemoveWatch,
               variant: 'danger',
             },
+          ]}
+        />
+      )}
+      {showRemovePrompt && (
+        <ConfirmDialog
+          title="Remove show"
+          message={`Remove "${show.title}" from your tracker? This can't be undone.`}
+          onDismiss={() => setShowRemovePrompt(false)}
+          actions={[
+            { label: 'Remove from tracker', onClick: handleConfirmRemove, variant: 'danger' },
           ]}
         />
       )}

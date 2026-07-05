@@ -39,6 +39,30 @@ export async function loadFromDrive() {
   }
 }
 
+/** Immediately (no debounce) pushes current store state to Drive,
+ * finding/creating the app's Drive file first if this session doesn't
+ * already have one cached. This is what the explicit "Save to Drive"
+ * button in Settings calls — it's a deliberate, user-initiated push,
+ * not a background side-effect of some other action. */
+export async function saveToDriveNow() {
+  const store = useAppStore.getState();
+  store.setSyncStatus('syncing');
+  try {
+    let fileId = store.driveFileId;
+    if (!fileId) {
+      fileId = await findOrCreateFile();
+      store.setDriveFileId(fileId);
+    }
+    const data: TrackerData = { version: 1, shows: store.shows };
+    await saveTrackerData(fileId, data);
+    store.setLastSyncedAt(Date.now());
+    store.setSyncStatus('idle');
+  } catch (err) {
+    console.error('Failed to save to Drive:', err);
+    store.setSyncStatus('error');
+  }
+}
+
 /** Debounced push of current store state to Drive. Call this after any
  * mutating action (add show, mark watched, edit progress, etc). Multiple
  * rapid calls collapse into a single write ~1s after the last one. */

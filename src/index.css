@@ -50,3 +50,19 @@ select,
 textarea {
   font-size: 16px;
 }
+
+/* Watched tap feedback (Home screen "mark next episode watched"
+   button): a solid green sheet wipes across the show card from left
+   to right. Once it fully covers the card the overlay is removed
+   (onAnimationEnd), simply revealing the card underneath again — the
+   wipe is a transient confirmation, not a new resting state. Animating
+   `transform: scaleX()` from a left `transform-origin` (rather than
+   `width`) keeps this on the compositor for a smooth sweep. */
+@keyframes card-wipe {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}

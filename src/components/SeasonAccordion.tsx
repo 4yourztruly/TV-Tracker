@@ -59,13 +59,17 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
             onToggleSeason(season.season);
           }}
           aria-label={seasonWatched ? 'Mark season unwatched' : 'Mark whole season watched'}
-          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
-            seasonWatched
-              ? 'border-ok-500 bg-ok-500/10 text-ok-500'
-              : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
+          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 ${
+            seasonWatched ? 'bg-ok-500' : 'bg-white hover:bg-ink-200'
           }`}
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3">
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-5 w-5 ${seasonWatched ? 'text-white' : 'text-ink-600'}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+          >
             <path d="M4 12.5L9.5 18L20 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -100,15 +104,13 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
                         ? `Watched ${watchCount > 1 ? `${watchCount} times` : 'once'} — tap to change`
                         : 'Mark episode watched'
                     }
-                    className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-95 ${
-                      watched
-                        ? 'border-ok-500 bg-ok-500/10 text-ok-500'
-                        : 'border-ink-600 text-ink-400 hover:border-signal-500 hover:text-signal-500'
+                    className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 ${
+                      watched ? 'bg-ok-500' : 'bg-white hover:bg-ink-200'
                     }`}
                   >
                     <svg
                       viewBox="0 0 24 24"
-                      className="h-4 w-4"
+                      className={`h-4 w-4 ${watched ? 'text-white' : 'text-ink-600'}`}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="3"

@@ -17,7 +17,7 @@ import { initGoogleAuth, onGoogleAuthReady, onTokenChange, trySilentSignIn, isTo
 // It never runs unless the user is already signed in right now — it
 // keeps an active session alive, it doesn't start a new one.
 const SILENT_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
-import { loadFromDrive } from './store/sync';
+import { loadFromDrive, saveToDriveNow } from './store/sync';
 
 function loadGisScript(onReady: () => void) {
   const existing = document.getElementById('gis-script');
@@ -46,9 +46,22 @@ export default function App() {
     const unsubscribeToken = onTokenChange((token) => {
       setSignedIn(!!token);
       if (token) {
-        loadFromDrive();
+        // Signing in never implies save OR load on its own — only run
+        // whichever explicit action (if any) the user actually pressed
+        // in Settings ("Save to Drive" / "Load from Drive") to get here.
+        // A silent background token refresh, for instance, comes through
+        // this same listener with no pending action and should do
+        // nothing but keep the session alive.
+        const pending = useAppStore.getState().pendingSyncAction;
+        if (pending === 'save') {
+          saveToDriveNow();
+        } else if (pending === 'load') {
+          loadFromDrive();
+        }
+        useAppStore.getState().setPendingSyncAction(null);
       } else {
         useAppStore.getState().setDriveFileId(null);
+        useAppStore.getState().setPendingSyncAction(null);
       }
     });
 
