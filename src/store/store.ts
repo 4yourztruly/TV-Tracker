@@ -40,13 +40,6 @@ interface AppState {
   setPreviewShow: (show: TrackedShow | null) => void;
 
   // --- drive sync bookkeeping ---
-  /** Whether the user has opted in to Google Drive sync. Persisted (it's
-   * just a preference, not a credential) so the app can quietly try to
-   * reconnect on future visits without the user having to click "Sign
-   * in" every time — see trySilentSignIn in App.tsx. Only flipped by an
-   * explicit sign-in/out action in Settings. */
-  driveSyncEnabled: boolean;
-  setDriveSyncEnabled: (enabled: boolean) => void;
   driveFileId: string | null;
   setDriveFileId: (id: string | null) => void;
   lastSyncedAt: number | null;
@@ -57,7 +50,7 @@ interface AppState {
   // --- home screen display preference ---
   /** 'list' is the grouped, detail-row layout; 'grid' is the
    * posters-only layout with a progress bar per poster. Persisted as a
-   * plain display preference (not a credential), same as driveSyncEnabled. */
+   * plain display preference (not a credential). */
   homeViewMode: 'list' | 'grid';
   setHomeViewMode: (mode: 'list' | 'grid') => void;
 
@@ -169,8 +162,6 @@ export const useAppStore = create<AppState>()(
       previewShow: null,
       setPreviewShow: (show) => set({ previewShow: show }),
 
-      driveSyncEnabled: false,
-      setDriveSyncEnabled: (enabled) => set({ driveSyncEnabled: enabled }),
       driveFileId: null,
       setDriveFileId: (id) => set({ driveFileId: id }),
       lastSyncedAt: null,
@@ -197,7 +188,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         shows: state.shows,
         lastSyncedAt: state.lastSyncedAt,
-        driveSyncEnabled: state.driveSyncEnabled,
         homeViewMode: state.homeViewMode,
         onlyShowWatching: state.onlyShowWatching,
       }),

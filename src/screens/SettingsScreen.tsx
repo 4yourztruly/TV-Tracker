@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAppStore } from '../store/store';
 import { requestSignIn, signOut } from '../api/auth';
 import { exportTrackerData, importTrackerData } from '../utils/exportImport';
@@ -10,43 +10,23 @@ import type { TrackerData } from '../types/show';
 export function SettingsScreen() {
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const isGoogleAuthReady = useAppStore((s) => s.isGoogleAuthReady);
-  const driveSyncEnabled = useAppStore((s) => s.driveSyncEnabled);
   const onlyShowWatching = useAppStore((s) => s.onlyShowWatching);
   const setOnlyShowWatching = useAppStore((s) => s.setOnlyShowWatching);
-  // The user has signed in before (driveSyncEnabled is a persisted
-  // preference, not a credential) but we don't have a live token yet —
-  // e.g. right after a page load, while the silent background
-  // reconnect is still in flight. Distinct from never having signed in
-  // at all, so this doesn't read as "you've been logged out."
-  const [reconnectTimedOut, setReconnectTimedOut] = useState(false);
-  const isReconnecting = driveSyncEnabled && !isSignedIn && !reconnectTimedOut;
-
-  // If the silent reconnect hasn't resolved after a few seconds (e.g.
-  // the Google consent grant actually expired, or the user is offline),
-  // stop showing "Reconnecting..." indefinitely and fall back to a
-  // normal, clickable "Sign in" button instead.
-  useEffect(() => {
-    if (!driveSyncEnabled || isSignedIn) {
-      setReconnectTimedOut(false);
-      return;
-    }
-    const timer = setTimeout(() => setReconnectTimedOut(true), 6000);
-    return () => clearTimeout(timer);
-  }, [driveSyncEnabled, isSignedIn]);
   const shows = useAppStore((s) => s.shows);
   const replaceAllShows = useAppStore((s) => s.replaceAllShows);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
-  const setDriveSyncEnabled = useAppStore((s) => s.setDriveSyncEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const stats = computeWatchStats(shows);
 
   function handleSignIn() {
-    const wasEnabled = useAppStore.getState().driveSyncEnabled;
-    const started = requestSignIn(wasEnabled ? 'select_account' : 'consent');
+    // Signed in before (lastSyncedAt is a persisted timestamp, not a
+    // credential) → let Google reuse that prior consent instead of
+    // forcing the full permission screen again.
+    const signedInBefore = useAppStore.getState().lastSyncedAt !== null;
+    const started = requestSignIn(signedInBefore ? 'select_account' : 'consent');
     if (started) {
-      setDriveSyncEnabled(true);
       setMessage(null);
     } else {
       setMessage('Google sign-in is still loading. Try again in a moment.');
@@ -54,7 +34,6 @@ export function SettingsScreen() {
   }
 
   function handleSignOut() {
-    setDriveSyncEnabled(false);
     signOut();
   }
 
@@ -90,34 +69,19 @@ export function SettingsScreen() {
           >
             Sign out
           </button>
-        ) : isReconnecting ? (
-          <div className="flex flex-col gap-2">
-            <button
-              disabled
-              className="rounded-lg border border-ink-700 px-4 py-2 text-left text-sm font-medium text-ink-400"
-            >
-              Reconnecting to Google...
-            </button>
-            <button
-              onClick={handleSignIn}
-              disabled={!isGoogleAuthReady}
-              className="text-left text-xs text-signal-500 hover:underline disabled:opacity-50"
-            >
-              Taking too long? Tap to sign in manually
-            </button>
-          </div>
         ) : (
           <button
             onClick={handleSignIn}
             disabled={!isGoogleAuthReady}
             className="rounded-lg bg-signal-500 px-4 py-2 text-left text-sm font-semibold text-ink-950 hover:bg-signal-600 disabled:opacity-50"
           >
-            {isGoogleAuthReady ? 'Sign in with Google' : 'Loading Google sign-in...'}
+            {isGoogleAuthReady ? 'Sign in with Google to sync' : 'Loading Google sign-in...'}
           </button>
         )}
         {lastSyncedAt && (
           <p className="text-xs text-ink-400">
             Last synced: {new Date(lastSyncedAt).toLocaleString()}
+            {!isSignedIn && ' — sign in again to sync more changes.'}
           </p>
         )}
       </section>
@@ -163,10 +127,12 @@ export function SettingsScreen() {
       <section className="flex flex-col gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Data</h2>
         <p className="text-xs text-ink-400">
-          Your data lives on this device by default — no account needed.
-          Optionally sign in with Google to back it up and sync it to a
-          hidden folder in your Drive that only this app can read.
-          Use export/import below to back it up or move it manually either way.
+          Your data lives on this device — no account needed. Sign in with
+          Google above whenever you want to back it up and sync it to a
+          hidden folder in your Drive that only this app can read; you'll
+          need to sign in again each time you come back, it won't stay
+          logged in. Use export/import below to back it up or move it
+          manually either way.
         </p>
         <button
           onClick={handleExport}

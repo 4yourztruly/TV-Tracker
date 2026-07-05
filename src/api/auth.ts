@@ -2,18 +2,21 @@
  * Google OAuth2 via Google Identity Services (GIS) "token client" — a
  * public client flow with no client secret, since this is a static SPA
  * with no backend. The access token is kept in memory only, never
- * written to storage, so it disappears on reload (we silently
- * re-request it instead) and isn't exposed to storage-reading XSS.
+ * written to storage, so it disappears on reload and isn't exposed to
+ * storage-reading XSS.
  *
- * IMPORTANT — session length is mostly controlled by Google, not this
- * file: while the OAuth consent screen in Google Cloud Console is in
- * "Testing" publishing status, Google expires every user's consent
- * grant after 7 days no matter what the app does, which forces the
- * interactive consent screen again on the next silent-refresh attempt.
- * Publishing the app (OAuth consent screen > Publish App) removes that
- * 7-day cap — after that, a signed-in user stays effectively signed in
- * (silently refreshed via trySilentSignIn) until they revoke access,
- * go 6 months without using the app, or change their Google password.
+ * This app works like a local-first save/sync tool, not an
+ * always-logged-in account: data lives on the device by default, and
+ * signing in with Google is a deliberate, per-session action the user
+ * takes (tapping "Sign in with Google" in Settings) whenever they want
+ * to sync to Drive. There is no persisted "was signed in" flag and no
+ * silent reconnect on app startup — every fresh load/refresh starts
+ * signed out, even if the user synced to Drive last time. Within a
+ * single session, once the user has signed in, the token is quietly
+ * refreshed in the background (see trySilentSignIn and App.tsx's
+ * refresh interval) so it doesn't expire mid-use — but that refresh
+ * only ever keeps an already-active sign-in alive, it never starts a
+ * new one on its own.
  */
 
 // Loaded via <script src="https://accounts.google.com/gsi/client"> in index.html
@@ -106,11 +109,13 @@ export function requestSignIn(prompt: 'consent' | 'select_account' = 'consent'):
   return true;
 }
 
-/** Silently (no popup) tries to reacquire a token for a user who signed
- * in before — succeeds quietly if they still have a valid Google
- * session and prior consent, and just as quietly does nothing visible
- * if not. Call on app startup when the user has previously opted in to
- * Drive sync, so they don't have to sign in again every visit. */
+/** Silently (no popup) tries to reacquire a token — succeeds quietly if
+ * there's still a valid Google session and prior consent from earlier
+ * *this session*, and just as quietly does nothing visible if not. Only
+ * used to keep an already-signed-in session's token fresh in the
+ * background (see App.tsx's refresh interval); deliberately never
+ * called on app startup, since sign-in isn't meant to persist across
+ * reloads. */
 export function trySilentSignIn() {
   if (!tokenClient) {
     console.error('Google auth not initialized yet.');

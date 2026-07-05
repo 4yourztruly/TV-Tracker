@@ -11,9 +11,11 @@ import { initGoogleAuth, onGoogleAuthReady, onTokenChange, trySilentSignIn, isTo
 // Google access tokens only last ~1 hour. Rather than waiting for one to
 // go stale mid-use and forcing a Drive call to block on a refresh, we
 // proactively re-request a fresh one in the background every 45 minutes
-// while the app stays open and the user has opted into Drive sync. This
-// is still the same silent (prompt: '') flow — it doesn't show anything
-// as long as the user's Google consent grant is still valid.
+// while the app stays open and the user is currently signed in for this
+// session. This is still the same silent (prompt: '') flow — it doesn't
+// show anything as long as the session's Google consent is still valid.
+// It never runs unless the user is already signed in right now — it
+// keeps an active session alive, it doesn't start a new one.
 const SILENT_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
 import { loadFromDrive } from './store/sync';
 
@@ -54,15 +56,19 @@ export default function App() {
 
     function connectGoogleAuth() {
       loadGisScript(() => {
+        // Just sets up the token client — deliberately does NOT request a
+        // token or attempt any silent reconnect here. Sign-in is a
+        // per-session, user-initiated action (tap "Sign in with Google" in
+        // Settings): on every fresh load/refresh the app starts out
+        // signed out and works entirely off local data, exactly as if the
+        // user had never signed in, even if they synced to Drive last time.
         initGoogleAuth();
-        if (useAppStore.getState().driveSyncEnabled) {
-          trySilentSignIn();
-        }
         // Keep quietly renewing in the background so a long-open tab
-        // never sits on an expired token — and so a user who left the
-        // app open for hours doesn't see any interruption.
+        // never sits on an expired token mid-session — but only once the
+        // user has actually signed in this session. This never starts a
+        // new sign-in on its own, it just keeps an active one alive.
         refreshInterval = setInterval(() => {
-          if (useAppStore.getState().driveSyncEnabled && !isTokenFresh()) {
+          if (useAppStore.getState().isSignedIn && !isTokenFresh()) {
             trySilentSignIn();
           }
         }, SILENT_REFRESH_INTERVAL_MS);
