@@ -45,6 +45,17 @@ export function SearchScreen() {
   const shows = useAppStore((s) => s.shows);
   const addShow = useAppStore((s) => s.addShow);
   const setPreviewShow = useAppStore((s) => s.setPreviewShow);
+  const searchResetToken = useAppStore((s) => s.searchResetToken);
+
+  // Tapping the Search tab's icon while already on it resets back to
+  // the default Top Rated browse view instead of leaving whatever was
+  // typed/searched still showing.
+  useEffect(() => {
+    if (searchResetToken === 0) return; // skip on initial mount
+    setQuery('');
+    setResults([]);
+    setError(null);
+  }, [searchResetToken]);
 
   async function runSearch(q: string) {
     setLoading(true);

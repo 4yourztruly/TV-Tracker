@@ -69,7 +69,18 @@ export function ShowDetailScreen() {
     pointerId: number;
     locked: boolean;
   } | null>(null);
-  const [dragX, setDragX] = useState(0);
+  const [dragX, setDragXState] = useState(0);
+  // Mirrors `dragX` synchronously. handlePointerUp reads this instead
+  // of the state value directly — state updates from a fast flurry of
+  // pointermove events can commit a render behind, so reading state at
+  // release time risked acting on a stale distance (closing/springing
+  // back based on where the drag *was* a moment ago, not where it
+  // actually ended).
+  const dragXRef = useRef(0);
+  function setDragX(value: number) {
+    dragXRef.current = value;
+    setDragXState(value);
+  }
   const [isDragging, setIsDragging] = useState(false);
 
   const trackedShow = shows.find((s) => s.id === selectedShowId);
@@ -162,7 +173,11 @@ export function ShowDetailScreen() {
     const dy = e.clientY - drag.startY;
     if (!drag.locked) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      if (dx <= 0 || Math.abs(dy) >= Math.abs(dx)) {
+      // Require a clearly horizontal drag (not just barely more
+      // horizontal than vertical) before committing to the back-swipe —
+      // otherwise the natural wobble in an intended vertical scroll can
+      // get mistaken for it and yank the sheet sideways.
+      if (dx <= 0 || Math.abs(dx) <= Math.abs(dy) * 1.5) {
         dragStateRef.current = null; // vertical scroll, not a back-swipe
         return;
       }
@@ -182,7 +197,7 @@ export function ShowDetailScreen() {
     }
     setIsDragging(false);
     const width = sheetRef.current?.offsetWidth ?? window.innerWidth;
-    if (dragX > width * CLOSE_THRESHOLD_RATIO) {
+    if (dragXRef.current > width * CLOSE_THRESHOLD_RATIO) {
       setDragX(width);
       setTimeout(handleClose, 150);
     } else {

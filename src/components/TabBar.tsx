@@ -11,6 +11,7 @@ const TABS: { id: Tab; label: string; Icon: typeof Home }[] = [
 export function TabBar() {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const resetSearchTab = useAppStore((s) => s.resetSearchTab);
 
   return (
     <nav
@@ -22,7 +23,10 @@ export function TabBar() {
         return (
           <button
             key={id}
-            onClick={() => setActiveTab(id)}
+            onClick={() => {
+              if (id === 'search' && activeTab === 'search') resetSearchTab();
+              setActiveTab(id);
+            }}
             className={`flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors ${
               isActive ? 'text-signal-500' : 'text-ink-400 hover:text-ink-200'
             }`}

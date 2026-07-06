@@ -171,7 +171,16 @@ export function ShowCard({ show, onReady }: Props) {
   // synthesizes afterward doesn't also open the detail view. Consumed
   // (reset) by the very next click.
   const wasDraggedRef = useRef(false);
-  const [dragX, setDragX] = useState(0);
+  const [dragX, setDragXState] = useState(0);
+  // Mirrors `dragX` synchronously so handlePointerUp always reads the
+  // distance as of the actual release, not whatever the last-committed
+  // render happened to be — state updates from a fast run of
+  // pointermove events can lag a render behind.
+  const dragXRef = useRef(0);
+  function setDragX(value: number) {
+    dragXRef.current = value;
+    setDragXState(value);
+  }
   const [isDragging, setIsDragging] = useState(false);
   const [isUnwiping, setIsUnwiping] = useState(false);
   const [unwipeKey, setUnwipeKey] = useState(0);
@@ -193,10 +202,11 @@ export function ShowCard({ show, onReady }: Props) {
     const dy = e.clientY - drag.startY;
     if (!drag.locked) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      // Only rightward, mostly-horizontal drags count as this gesture —
-      // anything else (leftward, or a vertical list scroll) is left
-      // alone entirely.
-      if (dx <= 0 || Math.abs(dy) >= Math.abs(dx)) {
+      // Only rightward, clearly-horizontal drags count as this gesture —
+      // requiring dx to clearly dominate dy (not just barely) keeps the
+      // natural wobble in an intended vertical list scroll from being
+      // mistaken for a swipe. Anything else is left alone entirely.
+      if (dx <= 0 || Math.abs(dx) <= Math.abs(dy) * 1.5) {
         dragStateRef.current = null;
         return;
       }
@@ -217,7 +227,7 @@ export function ShowCard({ show, onReady }: Props) {
     }
     setIsDragging(false);
     const width = cardRef.current?.offsetWidth ?? 0;
-    if (dragX > width * 0.5) {
+    if (dragXRef.current > width * 0.5) {
       unwatchLastEpisode(show.id);
       syncToDrive();
       setUnwipeKey((k) => k + 1);

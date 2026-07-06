@@ -10,6 +10,11 @@
 export interface TopRatedShowEntry {
   title: string;
   imdbRating: string;
+  /** Disambiguates a title that TMDB search would otherwise resolve to
+   * the wrong entry (e.g. a same-titled remake/adaptation) — matched
+   * against the search result's first-air-date year. Only needed when
+   * that's actually a problem for the title in question. */
+  year?: string;
 }
 
 export const TOP_RATED_SHOWS: TopRatedShowEntry[] = [
@@ -20,7 +25,9 @@ export const TOP_RATED_SHOWS: TopRatedShowEntry[] = [
   { title: 'Band of Brothers', imdbRating: '9.4' },
   { title: 'Blue Planet II', imdbRating: '9.3' },
   { title: 'The Wire', imdbRating: '9.3' },
-  { title: 'Avatar: The Last Airbender', imdbRating: '9.3' },
+  // year disambiguates from Netflix's 2024 live-action adaptation,
+  // which otherwise outranks the original in TMDB's search results.
+  { title: 'Avatar: The Last Airbender', imdbRating: '9.3', year: '2005' },
   { title: 'Cosmos: A Spacetime Odyssey', imdbRating: '9.3' },
   { title: 'The Sopranos', imdbRating: '9.2' },
   { title: 'Game of Thrones', imdbRating: '9.2' },

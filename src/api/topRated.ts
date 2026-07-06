@@ -12,12 +12,17 @@ export interface TopRatedEntry {
 // up again.
 const resolvedCache = new Map<string, SearchResult | null>();
 
-async function resolveOne(title: string): Promise<SearchResult | null> {
-  if (resolvedCache.has(title)) return resolvedCache.get(title)!;
+async function resolveOne(title: string, year?: string): Promise<SearchResult | null> {
+  const cacheKey = `${title}|${year ?? ''}`;
+  if (resolvedCache.has(cacheKey)) return resolvedCache.get(cacheKey)!;
   try {
     const results = await searchTmdb(title);
-    const match = results[0] ?? null;
-    resolvedCache.set(title, match);
+    // When a year is given, prefer the result matching it (disambiguates
+    // a title TMDB's own ranking would otherwise get wrong — e.g. a
+    // same-titled remake outranking the original); fall back to TMDB's
+    // top result otherwise.
+    const match = (year ? results.find((r) => r.year === year) : undefined) ?? results[0] ?? null;
+    resolvedCache.set(cacheKey, match);
     return match;
   } catch (err) {
     console.error(`Failed to resolve top-rated show "${title}":`, err);
@@ -34,7 +39,7 @@ export async function getTopRatedShows(): Promise<TopRatedEntry[]> {
   const resolved = await Promise.all(
     TOP_RATED_SHOWS.map(async (entry) => ({
       entry,
-      result: await resolveOne(entry.title),
+      result: await resolveOne(entry.title, entry.year),
     }))
   );
   return resolved

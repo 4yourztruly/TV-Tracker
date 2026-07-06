@@ -43,6 +43,12 @@ interface AppState {
   // --- ui ---
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
+  /** Bumped whenever the user taps the Search tab's icon while already
+   * on the Search tab — SearchScreen watches this to clear its query
+   * back to the default Top Rated browse view, the same way a fresh
+   * "go to search" tap would land. */
+  searchResetToken: number;
+  resetSearchTab: () => void;
   selectedShowId: string | null;
   setSelectedShow: (id: string | null) => void;
   /** A show whose details are being viewed from the Search tab but that
@@ -219,6 +225,8 @@ export const useAppStore = create<AppState>()(
 
       activeTab: 'home',
       setActiveTab: (tab) => set({ activeTab: tab }),
+      searchResetToken: 0,
+      resetSearchTab: () => set((s) => ({ searchResetToken: s.searchResetToken + 1 })),
       selectedShowId: null,
       setSelectedShow: (id) => set({ selectedShowId: id }),
       previewShow: null,
