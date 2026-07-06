@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EpisodeInfo, SeasonSummary, TrackedShow } from '../types/show';
 import { getSeasonEpisodes } from '../api/search';
 import { isEpisodeWatched, isSeasonFullyWatched, getNextEpisode, getEpisodeWatchCount } from '../utils/progress';
@@ -9,21 +9,34 @@ interface Props {
   season: SeasonSummary;
   onEpisodeCheckboxClick: (season: number, episode: number) => void;
   onToggleSeason: (season: number) => void;
+  /** Force this season open (e.g. deep-linked from Watch History)
+   * instead of waiting for the user to tap it. */
+  autoExpand?: boolean;
+  /** When this season is (auto-)expanded, scroll this episode's row
+   * into view and briefly highlight it. */
+  focusEpisode?: number;
 }
 
-export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggleSeason }: Props) {
+export function SeasonAccordion({
+  show,
+  season,
+  onEpisodeCheckboxClick,
+  onToggleSeason,
+  autoExpand,
+  focusEpisode,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<EpisodeInfo[] | null>(season.episodes ?? null);
   const [loading, setLoading] = useState(false);
+  const focusedRowRef = useRef<HTMLDivElement>(null);
+  const [justFocused, setJustFocused] = useState(false);
 
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
   const seasonWatched = isSeasonFullyWatched(show, season.season);
   const next = getNextEpisode(show);
 
-  async function toggle() {
-    const willExpand = !expanded;
-    setExpanded(willExpand);
-    if (!willExpand) return;
+  async function expand() {
+    setExpanded(true);
 
     if (episodes === null) {
       setLoading(true);
@@ -57,6 +70,31 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
       }
     }
   }
+
+  async function toggle() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    await expand();
+  }
+
+  useEffect(() => {
+    if (autoExpand && !expanded) expand();
+    // Only reacting to autoExpand turning on, not to `expanded` itself
+    // (which would re-trigger every time the user manually collapses).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExpand]);
+
+  // Once the focused episode's row actually exists (season expanded,
+  // episodes loaded), scroll it into view and briefly highlight it.
+  useEffect(() => {
+    if (focusEpisode == null || !expanded || loading || !focusedRowRef.current) return;
+    focusedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setJustFocused(true);
+    const timeout = setTimeout(() => setJustFocused(false), 1500);
+    return () => clearTimeout(timeout);
+  }, [focusEpisode, expanded, loading, episodes]);
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-900">
@@ -106,12 +144,14 @@ export function SeasonAccordion({ show, season, onEpisodeCheckboxClick, onToggle
               const watchCount = getEpisodeWatchCount(show, season.season, ep.episode);
               const isNext = next?.season === season.season && next?.episode === ep.episode;
               const isLast = idx === episodes.length - 1;
+              const isFocused = focusEpisode === ep.episode;
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
-                  className={`flex w-full items-stretch gap-2 overflow-hidden text-left text-xs ${
+                  ref={isFocused ? focusedRowRef : undefined}
+                  className={`flex w-full items-stretch gap-2 overflow-hidden text-left text-xs transition-colors ${
                     show.source !== 'tmdb' || !ep.imageUrl ? 'pl-2' : ''
-                  } ${isNext ? 'bg-ink-800/60' : ''}`}
+                  } ${isFocused && justFocused ? 'bg-signal-500/20' : isNext ? 'bg-ink-800/60' : ''}`}
                 >
                   {show.source === 'tmdb' && ep.imageUrl && (
                     // Was `h-16 w-28` before sizing these up. Last row

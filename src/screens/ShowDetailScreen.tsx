@@ -40,6 +40,17 @@ export function ShowDetailScreen() {
   const backfillGenres = useAppStore((s) => s.backfillGenres);
   const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
 
+  // Deep-link from the Home screen's Watch History: which episode (if
+  // any) to auto-expand/scroll to on open. Captured once on mount
+  // (lazy initializer) rather than read live, so it can't change out
+  // from under this screen mid-view; the store's copy is cleared right
+  // after so it doesn't affect any later, unrelated open.
+  const [focusEpisode] = useState(() => useAppStore.getState().pendingEpisodeFocus);
+  useEffect(() => {
+    if (focusEpisode) useAppStore.getState().setPendingEpisodeFocus(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Pending confirmation prompts. skipPrompt: the user tapped an
   // unwatched episode that has unwatched episodes before it — ask
   // whether to also mark those. rewatchPrompt: the user tapped an
@@ -472,6 +483,10 @@ export function ShowDetailScreen() {
                   season={season}
                   onEpisodeCheckboxClick={handleEpisodeCheckboxClick}
                   onToggleSeason={handleToggleSeason}
+                  autoExpand={focusEpisode?.season === season.season}
+                  focusEpisode={
+                    focusEpisode?.season === season.season ? focusEpisode.episode : undefined
+                  }
                 />
               ))}
             </div>

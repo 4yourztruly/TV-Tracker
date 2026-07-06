@@ -36,6 +36,13 @@ interface AppState {
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
   markNextEpisodeWatched: (id: string) => void;
   unwatchLastEpisode: (id: string) => void;
+  /** Which show/episode the Home screen's Watch History was last
+   * pointed at, so ShowDetailScreen can jump straight to that episode
+   * (auto-expand its season, scroll it into view) instead of just
+   * opening the show. Consumed once by ShowDetailScreen on mount, then
+   * cleared — never persisted, it's meaningless across a reload. */
+  pendingEpisodeFocus: { season: number; episode: number } | null;
+  setPendingEpisodeFocus: (focus: { season: number; episode: number } | null) => void;
   setShowStatus: (id: string, status: TrackedShow['status']) => void;
   setShowNotes: (id: string, notes: string) => void;
   replaceAllShows: (shows: TrackedShow[]) => void; // used by import
@@ -79,6 +86,12 @@ interface AppState {
    * grid layouts. */
   onlyShowWatching: boolean;
   setOnlyShowWatching: (only: boolean) => void;
+
+  /** Whether the Home screen shows the Watch History section (most-
+   * recently-watched shows/episodes first, above Watching). A display
+   * preference toggled in Settings. */
+  showWatchHistory: boolean;
+  setShowWatchHistory: (show: boolean) => void;
 }
 
 // idb-keyval backed storage adapter so Zustand's persist middleware can
@@ -187,29 +200,52 @@ export const useAppStore = create<AppState>()(
         })),
 
       // Quick-action from the home screen card: marks whatever the
-      // currently-shown "next episode" is as watched.
+      // currently-shown "next episode" is as watched. The only action
+      // that appends to Watch History — episode/season toggles from
+      // the detail screen deliberately don't, so History only ever
+      // shows episodes actually watched via the home screen.
       markNextEpisodeWatched: (id) =>
         set((s) => ({
           shows: s.shows.map((sh) => {
             if (sh.id !== id) return sh;
             const next = getNextEpisode(sh);
             if (!next) return sh;
-            return applyWatchedChange(sh, toggleEpisodeWatched(sh, next.season, next.episode));
+            const updated = applyWatchedChange(sh, toggleEpisodeWatched(sh, next.season, next.episode));
+            return {
+              ...updated,
+              watchHistory: [
+                ...(sh.watchHistory ?? []),
+                { season: next.season, episode: next.episode, watchedAt: Date.now() },
+              ],
+            };
           }),
         })),
 
       // Swipe-to-unwatch quick action from the home screen card: undoes
       // whichever episode was most recently marked watched (mirrors
-      // markNextEpisodeWatched, just in reverse).
+      // markNextEpisodeWatched, just in reverse) — including removing
+      // its Watch History entry, since it's no longer actually watched.
       unwatchLastEpisode: (id) =>
         set((s) => ({
           shows: s.shows.map((sh) => {
             if (sh.id !== id) return sh;
             const last = getLastWatchedEpisode(sh);
             if (!last) return sh;
-            return applyWatchedChange(sh, setEpisodeWatchCount(sh, last.season, last.episode, 0));
+            const updated = applyWatchedChange(
+              sh,
+              setEpisodeWatchCount(sh, last.season, last.episode, 0)
+            );
+            return {
+              ...updated,
+              watchHistory: (sh.watchHistory ?? []).filter(
+                (h) => !(h.season === last.season && h.episode === last.episode)
+              ),
+            };
           }),
         })),
+
+      pendingEpisodeFocus: null,
+      setPendingEpisodeFocus: (focus) => set({ pendingEpisodeFocus: focus }),
 
       setShowStatus: (id, status) =>
         set((s) => ({
@@ -244,6 +280,9 @@ export const useAppStore = create<AppState>()(
 
       onlyShowWatching: false,
       setOnlyShowWatching: (only) => set({ onlyShowWatching: only }),
+
+      showWatchHistory: true,
+      setShowWatchHistory: (show) => set({ showWatchHistory: show }),
     }),
     {
       name: 'tv-tracker-storage',
@@ -260,6 +299,7 @@ export const useAppStore = create<AppState>()(
         lastSyncedAt: state.lastSyncedAt,
         homeViewMode: state.homeViewMode,
         onlyShowWatching: state.onlyShowWatching,
+        showWatchHistory: state.showWatchHistory,
       }),
       // Bumped for the watchedEpisodes migration — upgrades anyone
       // rehydrating from an older locally-persisted copy.

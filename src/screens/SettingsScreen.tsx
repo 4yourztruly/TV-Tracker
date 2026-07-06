@@ -14,6 +14,8 @@ export function SettingsScreen() {
   const syncStatus = useAppStore((s) => s.syncStatus);
   const onlyShowWatching = useAppStore((s) => s.onlyShowWatching);
   const setOnlyShowWatching = useAppStore((s) => s.setOnlyShowWatching);
+  const showWatchHistory = useAppStore((s) => s.showWatchHistory);
+  const setShowWatchHistory = useAppStore((s) => s.setShowWatchHistory);
   const shows = useAppStore((s) => s.shows);
   const replaceAllShows = useAppStore((s) => s.replaceAllShows);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
@@ -166,6 +168,12 @@ export function SettingsScreen() {
           onChange={setOnlyShowWatching}
           label="Only show Watching"
           description="Hide Watchlist, Up to date, and Completed on the home screen."
+        />
+        <Toggle
+          checked={showWatchHistory}
+          onChange={setShowWatchHistory}
+          label="Show Watch History"
+          description="Show a Watch History section above Watching, listing shows by when you last watched an episode."
         />
       </section>
 

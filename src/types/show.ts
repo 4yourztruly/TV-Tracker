@@ -39,6 +39,15 @@ export interface TrackedShow {
    * serialization to Drive. */
   watchedEpisodes: Record<string, number>;
 
+  /** Log of episodes marked watched via the Home screen's quick-watch
+   * checkmark specifically (not episode/season toggles from the
+   * detail screen), oldest first. Powers the Home screen's Watch
+   * History section — every home-screen watch gets its own entry, so
+   * watching episodes 1, 2, 3 back to back shows all three, not just
+   * the latest. Unwatching via the home screen's swipe gesture removes
+   * the matching entry rather than adding one. */
+  watchHistory?: { season: number; episode: number; watchedAt: number }[];
+
   /** Total known episode count. May be null for ongoing anime with an
    * unknown final count (Jikan can return null). */
   totalEpisodes: number | null;
