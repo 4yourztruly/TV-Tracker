@@ -188,6 +188,19 @@ export function ShowDetailScreen() {
     setDragX(Math.max(0, Math.min(dx, width)));
   }
 
+  // A cancel means the browser is taking the gesture away from us (most
+  // commonly: the season list has enough content to actually scroll,
+  // so once it detects vertical motion it reclaims the touch for native
+  // scrolling) — not the user deliberately releasing. Treating it like
+  // a normal release meant an interrupted scroll on a long episode list
+  // could "slip" into closing the sheet even though the user never let
+  // go past the threshold. Always just snap back instead.
+  function handleEdgePointerCancel() {
+    dragStateRef.current = null;
+    setIsDragging(false);
+    setDragX(0);
+  }
+
   function handleEdgePointerUp() {
     const drag = dragStateRef.current;
     dragStateRef.current = null;
@@ -330,10 +343,11 @@ export function ShowDetailScreen() {
   return (
     <div
       className="fixed inset-0 z-20 flex justify-center bg-black/40"
+      style={{ touchAction: 'pan-y' }}
       onPointerDown={handleEdgePointerDown}
       onPointerMove={handleEdgePointerMove}
       onPointerUp={handleEdgePointerUp}
-      onPointerCancel={handleEdgePointerUp}
+      onPointerCancel={handleEdgePointerCancel}
     >
       <div
         ref={sheetRef}

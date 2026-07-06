@@ -218,6 +218,17 @@ export function ShowCard({ show, onReady }: Props) {
     setDragX(Math.max(0, Math.min(dx, width)));
   }
 
+  // A cancel means the browser reclaimed the gesture for its own
+  // native handling (typically: the list scrolled enough that it
+  // decided this was a scroll, not a drag) — not a deliberate release.
+  // Treating it like a normal release risked an interrupted scroll
+  // "slipping" into committing the unwatch. Always just snap back.
+  function handlePointerCancel() {
+    dragStateRef.current = null;
+    setIsDragging(false);
+    setDragX(0);
+  }
+
   function handlePointerUp() {
     const drag = dragStateRef.current;
     dragStateRef.current = null;
@@ -252,7 +263,7 @@ export function ShowCard({ show, onReady }: Props) {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       {canUnwatch && dragX > 0 && (
         <div
