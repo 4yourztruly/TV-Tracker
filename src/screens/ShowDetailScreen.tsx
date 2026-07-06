@@ -63,6 +63,15 @@ export function ShowDetailScreen() {
   const EDGE_WIDTH = 24;
   const CLOSE_THRESHOLD_RATIO = 0.3;
   const sheetRef = useRef<HTMLDivElement>(null);
+  // The scrollable body (bio + season list) — its native scrolling is
+  // locked for the duration of a locked-in edge-swipe so the browser
+  // can't reclaim the touch mid-drag to scroll it (which used to fire
+  // a pointercancel that got misread as a deliberate release).
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+  function setContentScrollLocked(locked: boolean) {
+    const el = contentScrollRef.current;
+    if (el) el.style.overflowY = locked ? 'hidden' : '';
+  }
   const dragStateRef = useRef<{
     startX: number;
     startY: number;
@@ -183,21 +192,25 @@ export function ShowDetailScreen() {
       }
       drag.locked = true;
       setIsDragging(true);
+      // Lock the content's own scrolling for the rest of this gesture —
+      // otherwise the browser can reclaim the touch mid-drag to scroll
+      // it, which used to fire a pointercancel that got misread as a
+      // deliberate release.
+      setContentScrollLocked(true);
     }
     const width = sheetRef.current?.offsetWidth ?? window.innerWidth;
     setDragX(Math.max(0, Math.min(dx, width)));
   }
 
-  // A cancel means the browser is taking the gesture away from us (most
-  // commonly: the season list has enough content to actually scroll,
-  // so once it detects vertical motion it reclaims the touch for native
-  // scrolling) — not the user deliberately releasing. Treating it like
-  // a normal release meant an interrupted scroll on a long episode list
-  // could "slip" into closing the sheet even though the user never let
-  // go past the threshold. Always just snap back instead.
+  // A cancel means the browser is taking the gesture away from us —
+  // not the user deliberately releasing. Treating it like a normal
+  // release meant an interrupted gesture could "slip" into closing the
+  // sheet even though the user never let go past the threshold. Always
+  // just snap back instead.
   function handleEdgePointerCancel() {
     dragStateRef.current = null;
     setIsDragging(false);
+    setContentScrollLocked(false);
     setDragX(0);
   }
 
@@ -208,6 +221,7 @@ export function ShowDetailScreen() {
       setDragX(0);
       return;
     }
+    setContentScrollLocked(false);
     setIsDragging(false);
     const width = sheetRef.current?.offsetWidth ?? window.innerWidth;
     if (dragXRef.current > width * CLOSE_THRESHOLD_RATIO) {
@@ -373,7 +387,7 @@ export function ShowDetailScreen() {
             <Spinner size={40} />
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div ref={contentScrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="flex gap-4">
               {show.posterUrl ? (
                 <img
