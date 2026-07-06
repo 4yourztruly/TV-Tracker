@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TrackedShow } from '../types/show';
 import { useAppStore } from '../store/store';
 import { ShowCard } from '../components/ShowCard';
@@ -8,7 +8,7 @@ import { Spinner } from '../components/Spinner';
 import { isShowUpToDate } from '../utils/progress';
 
 const WATCH_HISTORY_PAGE_SIZE = 10;
-// How close to the very top of the scroll container (in px) before
+// How close to the very bottom of the scroll container (in px) before
 // loading in the next batch of older Watch History entries.
 const WATCH_HISTORY_LOAD_MORE_THRESHOLD = 80;
 
@@ -19,23 +19,22 @@ export function HomeScreen() {
   const showWatchHistory = useAppStore((s) => s.showWatchHistory);
 
   // Every home-screen "mark watched" tap across every show, flattened
-  // into one feed and sorted oldest-first (most current at the
-  // bottom) — a separate, recency-ordered view layered above the
-  // status-grouped sections below (a show can appear in both, and the
-  // same show can appear multiple times if several of its episodes
-  // were watched that way).
+  // into one feed and sorted newest-first (oldest last) — a separate,
+  // recency-ordered view layered below the status-grouped sections
+  // above (a show can appear in both, and the same show can appear
+  // multiple times if several of its episodes were watched that way).
   const watchHistory = showWatchHistory
     ? shows
         .flatMap((show) => (show.watchHistory ?? []).map((entry) => ({ show, entry })))
-        .sort((a, b) => a.entry.watchedAt - b.entry.watchedAt)
+        .sort((a, b) => b.entry.watchedAt - a.entry.watchedAt)
     : [];
 
   // Only the most recent WATCH_HISTORY_PAGE_SIZE entries render at
-  // first; scrolling up toward the top loads the next batch of older
-  // ones (see the load-more effect below), so a long history doesn't
-  // all have to render — and be scrolled past — at once.
+  // first; scrolling down toward the bottom loads the next batch of
+  // older ones (see the load-more effect below), so a long history
+  // doesn't all have to render at once.
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(WATCH_HISTORY_PAGE_SIZE);
-  const visibleWatchHistory = watchHistory.slice(-visibleHistoryCount);
+  const visibleWatchHistory = watchHistory.slice(0, visibleHistoryCount);
 
   const upToDate = shows.filter(isShowUpToDate);
   const watching = shows.filter((s) => s.status === 'watching' && !isShowUpToDate(s));
@@ -53,34 +52,22 @@ export function HomeScreen() {
   const visibleShows = onlyShowWatching ? watching : shows;
   const allReady = visibleShows.every((s) => readyIds.has(s.id));
 
-  // Watch History sits above Watching and grows/shrinks a row every
-  // time an episode is marked watched/unwatched from the home screen.
-  // Left alone, that insertion/removal would shift everything below it
-  // — including the card the user just tapped — up or down on screen.
-  // This keeps currently-visible content pinned by adjusting scroll by
-  // exactly the height that changed, so Watching (and the rest) stays
-  // put; scrolling up is still how you reach History.
+  // Watch History is the last section on the page, so growing/shrinking
+  // it (marking an episode watched/unwatched from the home screen)
+  // never shifts anything above it — no scroll compensation needed.
   const rootRef = useRef<HTMLDivElement>(null);
-  const prevScrollHeightRef = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    const scrollEl = rootRef.current?.closest('.overflow-y-auto');
-    if (!(scrollEl instanceof HTMLElement)) return;
-    const newHeight = scrollEl.scrollHeight;
-    if (prevScrollHeightRef.current != null) {
-      scrollEl.scrollTop += newHeight - prevScrollHeightRef.current;
-    }
-    prevScrollHeightRef.current = newHeight;
-  }, [watchHistory.length, visibleHistoryCount]);
 
-  // Scrolling near the very top loads the next WATCH_HISTORY_PAGE_SIZE
-  // older entries — same lazy-loading pattern as a chat log's older
-  // messages. Re-subscribes whenever the total count changes so the
+  // Scrolling near the very bottom loads the next
+  // WATCH_HISTORY_PAGE_SIZE older entries — standard infinite-scroll
+  // pattern. Re-subscribes whenever the total count changes so the
   // handler's cap is never stale.
   useEffect(() => {
     const scrollEl = rootRef.current?.closest('.overflow-y-auto');
     if (!(scrollEl instanceof HTMLElement)) return;
     function handleScroll() {
-      if ((scrollEl as HTMLElement).scrollTop > WATCH_HISTORY_LOAD_MORE_THRESHOLD) return;
+      const el = scrollEl as HTMLElement;
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > WATCH_HISTORY_LOAD_MORE_THRESHOLD) return;
       setVisibleHistoryCount((prev) => Math.min(prev + WATCH_HISTORY_PAGE_SIZE, watchHistory.length));
     }
     scrollEl.addEventListener('scroll', handleScroll, { passive: true });
@@ -122,22 +109,6 @@ export function HomeScreen() {
       <div
         className={`flex flex-col gap-6 px-4 py-4 ${allReady ? '' : 'invisible'}`}
       >
-        {/* A new entry is just silently appended here — nothing
-            scrolls or otherwise draws attention to this section when
-            an episode is marked watched from the home screen below. */}
-        {visibleWatchHistory.length > 0 && (
-          <Section title="Watch History" grid={false}>
-            {visibleWatchHistory.map(({ show, entry }) => (
-              <WatchHistoryItem
-                key={`${show.id}-${entry.season}-${entry.episode}-${entry.watchedAt}`}
-                show={show}
-                season={entry.season}
-                episode={entry.episode}
-              />
-            ))}
-          </Section>
-        )}
-
         {watching.length > 0 && (
           <Section title="Watching" grid={isGrid}>
             {watching.map((show) => (
@@ -166,6 +137,19 @@ export function HomeScreen() {
           <Section title="Completed" grid={isGrid}>
             {completed.map((show) => (
               <ShowItem key={show.id} show={show} grid={isGrid} onReady={markReady} />
+            ))}
+          </Section>
+        )}
+
+        {visibleWatchHistory.length > 0 && (
+          <Section title="Watch History" grid={false}>
+            {visibleWatchHistory.map(({ show, entry }) => (
+              <WatchHistoryItem
+                key={`${show.id}-${entry.season}-${entry.episode}-${entry.watchedAt}`}
+                show={show}
+                season={entry.season}
+                episode={entry.episode}
+              />
             ))}
           </Section>
         )}
