@@ -6,7 +6,19 @@
       "Bash(npx tsc *)",
       "Bash(npx oxlint *)",
       "Bash(netstat -ano)",
-      "Bash(powershell -Command \"Stop-Process -Id 22468 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 22468 -Force\")",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(command -v chromium-cli)",
+      "Bash(command -v npx)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node verify-swipe.js)",
+      "Bash(pkill -f \"vite\")",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'node' } | Select-Object Id,ProcessName,Path)",
+      "Bash(curl -s -o /dev/null -w \"5173:%{http_code}\\\\n\" http://localhost:5173/TV-Tracker/)",
+      "Bash(curl -s -o /dev/null -w \"5174:%{http_code}\\\\n\" http://localhost:5174/TV-Tracker/)"
     ]
   }
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import type { EpisodeInfo, TrackedShow } from '../types/show';
-import { deriveStatus, getNextEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount } from '../utils/progress';
+import { deriveStatus, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
 export type Tab = 'home' | 'search' | 'settings';
@@ -35,6 +35,7 @@ interface AppState {
   backfillGenres: (id: string, genres: string[]) => void;
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
   markNextEpisodeWatched: (id: string) => void;
+  unwatchLastEpisode: (id: string) => void;
   setShowStatus: (id: string, status: TrackedShow['status']) => void;
   setShowNotes: (id: string, notes: string) => void;
   replaceAllShows: (shows: TrackedShow[]) => void; // used by import
@@ -188,6 +189,19 @@ export const useAppStore = create<AppState>()(
             const next = getNextEpisode(sh);
             if (!next) return sh;
             return applyWatchedChange(sh, toggleEpisodeWatched(sh, next.season, next.episode));
+          }),
+        })),
+
+      // Swipe-to-unwatch quick action from the home screen card: undoes
+      // whichever episode was most recently marked watched (mirrors
+      // markNextEpisodeWatched, just in reverse).
+      unwatchLastEpisode: (id) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => {
+            if (sh.id !== id) return sh;
+            const last = getLastWatchedEpisode(sh);
+            if (!last) return sh;
+            return applyWatchedChange(sh, setEpisodeWatchCount(sh, last.season, last.episode, 0));
           }),
         })),
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Star } from 'lucide-react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
@@ -53,6 +53,24 @@ export function ShowDetailScreen() {
   // same styled ConfirmDialog as the episode prompts instead of the
   // native browser confirm(), which looks jarringly out of place.
   const [showRemovePrompt, setShowRemovePrompt] = useState(false);
+
+  // Swipe-from-the-left-edge-to-go-back: a drag starting within
+  // EDGE_WIDTH px of the screen's left edge drags the whole sheet
+  // along with the finger; releasing past CLOSE_THRESHOLD_RATIO of the
+  // sheet's width finishes the close, otherwise it springs back. A
+  // vertical-dominant drag (i.e. the user is scrolling the content, not
+  // swiping back) bails out immediately without touching scroll.
+  const EDGE_WIDTH = 24;
+  const CLOSE_THRESHOLD_RATIO = 0.3;
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{
+    startX: number;
+    startY: number;
+    pointerId: number;
+    locked: boolean;
+  } | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const trackedShow = shows.find((s) => s.id === selectedShowId);
   // Preview mode: viewing a search result's details before it's been
@@ -124,6 +142,52 @@ export function ShowDetailScreen() {
   function handleClose() {
     setSelectedShow(null);
     setPreviewShow(null);
+  }
+
+  function handleEdgePointerDown(e: React.PointerEvent) {
+    if (e.clientX > EDGE_WIDTH) return; // only from the very left edge
+    if (skipPrompt || rewatchPrompt || showRemovePrompt) return; // a dialog is up
+    dragStateRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerId: e.pointerId,
+      locked: false,
+    };
+  }
+
+  function handleEdgePointerMove(e: React.PointerEvent) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.locked) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (dx <= 0 || Math.abs(dy) >= Math.abs(dx)) {
+        dragStateRef.current = null; // vertical scroll, not a back-swipe
+        return;
+      }
+      drag.locked = true;
+      setIsDragging(true);
+    }
+    const width = sheetRef.current?.offsetWidth ?? window.innerWidth;
+    setDragX(Math.max(0, Math.min(dx, width)));
+  }
+
+  function handleEdgePointerUp() {
+    const drag = dragStateRef.current;
+    dragStateRef.current = null;
+    if (!drag?.locked) {
+      setDragX(0);
+      return;
+    }
+    setIsDragging(false);
+    const width = sheetRef.current?.offsetWidth ?? window.innerWidth;
+    if (dragX > width * CLOSE_THRESHOLD_RATIO) {
+      setDragX(width);
+      setTimeout(handleClose, 150);
+    } else {
+      setDragX(0);
+    }
   }
 
   /** Applies a computed watchedEpisodes map, handling the preview-vs-
@@ -249,8 +313,21 @@ export function ShowDetailScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-center bg-black/40">
-      <div className="flex h-full w-full max-w-[480px] flex-col bg-ink-950 md:border-x md:border-ink-800">
+    <div
+      className="fixed inset-0 z-20 flex justify-center bg-black/40"
+      onPointerDown={handleEdgePointerDown}
+      onPointerMove={handleEdgePointerMove}
+      onPointerUp={handleEdgePointerUp}
+      onPointerCancel={handleEdgePointerUp}
+    >
+      <div
+        ref={sheetRef}
+        style={{
+          transform: `translateX(${dragX}px)`,
+          transition: isDragging ? 'none' : 'transform 0.2s ease',
+        }}
+        className="flex h-full w-full max-w-[480px] flex-col bg-ink-950 md:border-x md:border-ink-800"
+      >
         <div className="sticky top-0 flex items-center gap-2 border-b border-ink-800 bg-ink-950/95 py-1.5 pl-1 pr-4 backdrop-blur">
           <button
             onClick={handleClose}

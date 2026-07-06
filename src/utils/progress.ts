@@ -50,6 +50,19 @@ export function getNextEpisode(show: TrackedShow): EpisodeInfo | null {
   return next ?? null;
 }
 
+/** The most recently watched episode in sequential order, or null if
+ * nothing has been watched yet. Used to undo the home screen's "mark
+ * next episode watched" quick action via a swipe gesture. */
+export function getLastWatchedEpisode(show: TrackedShow): EpisodeInfo | null {
+  const order = allEpisodesInOrder(show);
+  for (let i = order.length - 1; i >= 0; i--) {
+    if (isEpisodeWatched(show, order[i].season, order[i].episode)) {
+      return order[i];
+    }
+  }
+  return null;
+}
+
 /** Episodes remaining AFTER the "next" episode shown on the home
  * screen (i.e. not counting that one). Returns null if the total
  * episode count is unknown. */
