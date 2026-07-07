@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
-import type { EpisodeInfo, TrackedShow } from '../types/show';
+import type { EpisodeInfo, SearchResult, TrackedShow } from '../types/show';
 import { CURRENT_EPISODES_VERSION } from '../types/show';
 import { deriveStatus, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
@@ -37,6 +37,7 @@ interface AppState {
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
   backfillAgeRating: (id: string, ageRating: string | null) => void;
   backfillBackdrops: (id: string, backdropUrls: string[]) => void;
+  backfillRelatedShows: (id: string, relatedShows: SearchResult[]) => void;
   markNextEpisodeWatched: (id: string) => void;
   unwatchLastEpisode: (id: string) => void;
   /** Which show/episode the Home screen's Watch History was last
@@ -216,6 +217,13 @@ export const useAppStore = create<AppState>()(
       backfillBackdrops: (id, backdropUrls) =>
         set((s) => ({
           shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, backdropUrls }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern, for shows tracked before
+      // `relatedShows` was cached on TrackedShow.
+      backfillRelatedShows: (id, relatedShows) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, relatedShows }) : sh)),
         })),
 
       // Quick-action from the home screen card: marks whatever the

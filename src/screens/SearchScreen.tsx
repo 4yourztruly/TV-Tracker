@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Star } from 'lucide-react';
-import type { SearchResult, TrackedShow } from '../types/show';
-import { searchAll, getShowDetails } from '../api/search';
-import { getImdbRating } from '../api/omdb';
+import type { SearchResult } from '../types/show';
+import { searchAll } from '../api/search';
 import { getTopRatedShows, type TopRatedEntry } from '../api/topRated';
 import { useAppStore } from '../store/store';
 import { syncToDrive } from '../store/sync';
+import { buildTrackedShow } from '../utils/buildTrackedShow';
 import { ImdbRating } from '../components/ImdbRating';
 import { Spinner } from '../components/Spinner';
 
@@ -94,38 +94,6 @@ export function SearchScreen() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); // Enter/button just avoids a page reload — the
     // debounced effect above already handles running the search.
-  }
-
-  async function buildTrackedShow(result: SearchResult): Promise<TrackedShow> {
-    // Fetched together (not sequentially) — and the rating is cached on
-    // the show going forward, so this is the only OMDb lookup it'll
-    // ever need instead of one every time it's viewed.
-    const [details, imdbRating] = await Promise.all([
-      getShowDetails(result.source, result.sourceId),
-      getImdbRating(result.title, result.year),
-    ]);
-    return {
-      id: crypto.randomUUID(),
-      source: result.source,
-      sourceId: result.sourceId,
-      title: details.title,
-      summary: details.summary,
-      posterUrl: details.posterUrl ?? result.posterUrl,
-      status: 'unwatched',
-      watchedEpisodes: {},
-      totalEpisodes: details.totalEpisodes,
-      seriesStatus: details.seriesStatus,
-      seriesStatusUpdatedAt: Date.now(),
-      seriesStatusVersion: 2,
-      episodeRuntimeMinutes: details.episodeRuntimeMinutes,
-      genres: details.genres,
-      ageRating: details.ageRating,
-      backdropUrls: details.backdropUrls,
-      imdbRating,
-      seasons: details.seasons,
-      addedAt: Date.now(),
-      updatedAt: Date.now(),
-    };
   }
 
   function existingTrackedShow(result: SearchResult) {

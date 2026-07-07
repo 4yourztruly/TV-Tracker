@@ -4,9 +4,11 @@ import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ImageLightbox } from '../components/ImageLightbox';
+import { RelatedShows } from '../components/RelatedShows';
 import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
-import { getShowDetails } from '../api/search';
+import { getShowDetails, getRelatedShows } from '../api/search';
+import { buildTrackedShow } from '../utils/buildTrackedShow';
 import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
@@ -17,7 +19,7 @@ import {
   isEpisodeWatched,
   getEpisodeWatchCount,
 } from '../utils/progress';
-import type { WatchStatus } from '../types/show';
+import type { SearchResult, WatchStatus } from '../types/show';
 
 const STATUS_OPTIONS: { value: WatchStatus; label: string }[] = [
   { value: 'unwatched', label: 'Watchlist' },
@@ -42,6 +44,7 @@ export function ShowDetailScreen() {
   const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
   const backfillAgeRating = useAppStore((s) => s.backfillAgeRating);
   const backfillBackdrops = useAppStore((s) => s.backfillBackdrops);
+  const backfillRelatedShows = useAppStore((s) => s.backfillRelatedShows);
 
   // Deep-link from the Home screen's Watch History: which episode (if
   // any) to auto-expand/scroll to on open. Captured once on mount
@@ -210,6 +213,59 @@ export function ShowDetailScreen() {
       cancelled = true;
     };
   }, [trackedShow, backfillBackdrops]);
+
+  useEffect(() => {
+    if (!trackedShow || trackedShow.relatedShows !== undefined) return;
+    // TMDB's related-shows query needs genres — wait for those to
+    // have settled (see the genres backfill effect above) instead of
+    // firing with an empty genre list and permanently caching an
+    // empty result. Not a concern on the Jikan path, which doesn't
+    // use genres at all (see getRelatedShows).
+    if (trackedShow.source === 'tmdb' && trackedShow.genres === undefined) return;
+    let cancelled = false;
+    getRelatedShows(trackedShow.source, trackedShow.sourceId, trackedShow.genres)
+      .then((related) => {
+        if (cancelled) return;
+        backfillRelatedShows(trackedShow.id, related);
+        syncToDrive();
+      })
+      .catch((err) => {
+        console.error('Failed to fetch related shows:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackedShow, backfillRelatedShows]);
+
+  // Which related-show tile (if any) is currently being opened, keyed
+  // as `${source}-${sourceId}` — shows a spinner on just that tile
+  // while its full details are fetched to build the preview.
+  const [openingRelatedKey, setOpeningRelatedKey] = useState<string | null>(null);
+
+  async function handleOpenRelatedShow(result: SearchResult) {
+    const existing = shows.find(
+      (s) => s.source === result.source && s.sourceId === result.sourceId
+    );
+    if (existing) {
+      setSelectedShow(existing.id);
+      return;
+    }
+    const key = `${result.source}-${result.sourceId}`;
+    setOpeningRelatedKey(key);
+    try {
+      const built = await buildTrackedShow(result);
+      // `show` resolves to trackedShow ?? previewShow — since we're
+      // currently viewing a *tracked* show, selectedShowId is still
+      // set to it, so setPreviewShow alone would do nothing visible.
+      // Clear it so the screen actually falls through to the new preview.
+      setPreviewShow(built);
+      setSelectedShow(null);
+    } catch (err) {
+      console.error('Failed to load related show details:', err);
+    } finally {
+      setOpeningRelatedKey(null);
+    }
+  }
 
   if (!show) return null;
 
@@ -441,7 +497,23 @@ export function ShowDetailScreen() {
             <Spinner size={40} />
           </div>
         ) : (
-          <div ref={contentScrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          // Keyed by show.id: this component doesn't unmount when you
+          // navigate from one show to another (e.g. tapping a Related
+          // Shows tile), it just re-renders with a new `show` prop —
+          // so without a key here, the poster/backdrop <img> elements
+          // and every SeasonAccordion just get their src/props updated
+          // in place. Browsers keep showing an <img>'s previous bitmap
+          // until the new one finishes loading, and SeasonAccordion's
+          // own episode-list state is seeded once via useState's lazy
+          // initializer, not resubscribed on prop changes — both of
+          // which surfaced as "the old show's pictures" after opening
+          // a related show. Keying this whole block forces a clean
+          // remount (and resets scroll position) on every show switch.
+          <div
+            key={show.id}
+            ref={contentScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+          >
             <div className="flex gap-4">
               {show.posterUrl ? (
                 <img
@@ -559,6 +631,14 @@ export function ShowDetailScreen() {
                 />
               ))}
             </div>
+
+            {show.relatedShows && (
+              <RelatedShows
+                shows={show.relatedShows}
+                openingKey={openingRelatedKey}
+                onSelect={handleOpenRelatedShow}
+              />
+            )}
 
             {!isPreview && (
               <button

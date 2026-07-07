@@ -163,3 +163,26 @@ export async function getJikanEpisodes(malId: number, page = 1) {
   const hasNextPage = !!data.pagination?.has_next_page;
   return { episodes, hasNextPage };
 }
+
+const RELATED_SHOWS_LIMIT = 5;
+
+/** Jikan has no genre-filtered discover endpoint, so unlike the TMDB
+ * side this uses MAL's own user-submitted "if you liked this, watch
+ * that" recommendations instead — a different signal than genre
+ * overlap, but the closest equivalent Jikan offers, and it doesn't
+ * need a genre-name-to-id table maintained for MAL's numbering.
+ * Already returned sorted by vote count (most-agreed-on first). */
+export async function getJikanRelatedShows(malId: number): Promise<SearchResult[]> {
+  const res = await fetch(`${JIKAN_BASE}/anime/${malId}/recommendations`);
+  if (!res.ok) throw new Error(`Jikan recommendations fetch failed: ${res.status}`);
+  const data = await res.json();
+  return (data.data || [])
+    .filter((rec: any) => rec.entry?.mal_id !== malId)
+    .slice(0, RELATED_SHOWS_LIMIT)
+    .map((rec: any) => ({
+      source: 'jikan' as const,
+      sourceId: rec.entry.mal_id,
+      title: rec.entry.title,
+      posterUrl: rec.entry.images?.jpg?.image_url,
+    }));
+}

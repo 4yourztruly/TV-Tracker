@@ -1,6 +1,6 @@
 import type { EpisodeInfo, SearchResult, ShowSource, SeasonSummary, SeriesStatus } from '../types/show';
-import { searchTmdb, getTmdbShowDetails, getTmdbSeasonEpisodes } from './tmdb';
-import { searchJikan, getJikanAnimeDetails, getJikanEpisodes } from './jikan';
+import { searchTmdb, getTmdbShowDetails, getTmdbSeasonEpisodes, getTmdbRelatedShows } from './tmdb';
+import { searchJikan, getJikanAnimeDetails, getJikanEpisodes, getJikanRelatedShows } from './jikan';
 
 // In-memory only, per query string — search-as-you-type means the
 // same text often gets searched again a moment later (backspacing
@@ -77,4 +77,17 @@ export async function getSeasonEpisodes(
     page += 1;
   }
   return episodes;
+}
+
+/** "You might also like" shows for the detail screen's Related Shows
+ * section — TMDB shows are matched by genre overlap, Jikan/anime by
+ * MAL's own community recommendations (see getJikanRelatedShows for
+ * why). `genres` is only used on the TMDB path. */
+export async function getRelatedShows(
+  source: ShowSource,
+  sourceId: number,
+  genres: string[] | undefined
+): Promise<SearchResult[]> {
+  if (source === 'tmdb') return getTmdbRelatedShows(genres, sourceId);
+  return getJikanRelatedShows(sourceId);
 }

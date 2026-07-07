@@ -22,11 +22,13 @@ export interface EpisodeInfo {
 }
 
 /** Bumped whenever the episode-fetching logic starts capturing a field
- * that older cached `EpisodeInfo[]` won't have (e.g. `episodeType`).
- * A season's cache is considered stale if its `episodesVersion` isn't
- * this, triggering a silent one-time refetch instead of permanently
- * showing incomplete data for shows cached under an older version. */
-export const CURRENT_EPISODES_VERSION = 2;
+ * (or a changed value, e.g. a higher-res still image URL) that older
+ * cached `EpisodeInfo[]` won't have. A season's cache is considered
+ * stale if its `episodesVersion` isn't this, triggering a silent
+ * one-time refetch instead of permanently showing incomplete/outdated
+ * data for shows cached under an older version.
+ * v2: added episodeType. v3: still images bumped from w200 to w780. */
+export const CURRENT_EPISODES_VERSION = 3;
 
 export interface SeasonSummary {
   season: number;
@@ -96,6 +98,12 @@ export interface TrackedShow {
    * Same undefined-vs-null-ish convention as `genres`: undefined means
    * never checked, an empty array means checked and none available. */
   backdropUrls?: string[];
+
+  /** Up to 5 "you might also like" shows for the detail screen's
+   * Related Shows section (TMDB: genre overlap; Jikan: MAL community
+   * recommendations — see getRelatedShows). Same undefined-vs-empty
+   * convention as `backdropUrls`. */
+  relatedShows?: SearchResult[];
 
   seasons: SeasonSummary[];
 

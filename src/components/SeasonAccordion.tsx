@@ -3,6 +3,7 @@ import type { EpisodeInfo, SeasonSummary, TrackedShow } from '../types/show';
 import { getSeasonEpisodes } from '../api/search';
 import { isEpisodeWatched, isSeasonFullyWatched, getNextEpisode, getEpisodeWatchCount } from '../utils/progress';
 import { useAppStore } from '../store/store';
+import { ImageLightbox } from './ImageLightbox';
 
 interface Props {
   show: TrackedShow;
@@ -30,10 +31,19 @@ export function SeasonAccordion({
   const [loading, setLoading] = useState(false);
   const focusedRowRef = useRef<HTMLDivElement>(null);
   const [justFocused, setJustFocused] = useState(false);
+  // Index into episodeImages (below) of the still currently open
+  // full-screen, null when closed.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
   const seasonWatched = isSeasonFullyWatched(show, season.season);
   const next = getNextEpisode(show);
+
+  // Stills for the full-screen viewer, in episode order — only
+  // episodes that actually have one (Jikan/anime episodes never do).
+  const episodeImages = (episodes ?? [])
+    .filter((ep): ep is EpisodeInfo & { imageUrl: string } => !!ep.imageUrl)
+    .map((ep) => ep.imageUrl);
 
   async function expand() {
     setExpanded(true);
@@ -145,6 +155,11 @@ export function SeasonAccordion({
               const isNext = next?.season === season.season && next?.episode === ep.episode;
               const isLast = idx === episodes.length - 1;
               const isFocused = focusEpisode === ep.episode;
+              // Index of this episode's still among just the episodes
+              // that have one — matches episodeImages below, so
+              // opening the lightbox here and swiping through it walks
+              // the stills in the same order as the episode list.
+              const imageIndex = episodeImages.indexOf(ep.imageUrl ?? '');
               return (
                 <div
                   key={`${ep.season}-${ep.episode}`}
@@ -157,11 +172,17 @@ export function SeasonAccordion({
                     // Was `h-16 w-28` before sizing these up. Last row
                     // gets a rounded bottom-left corner to match the
                     // season card's own rounded-lg corner behind it.
-                    <img
-                      src={ep.imageUrl}
-                      alt=""
-                      className={`h-24 w-40 flex-shrink-0 self-stretch object-cover ${isLast ? 'rounded-bl-lg' : ''}`}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setLightboxIndex(imageIndex)}
+                      className={`h-24 w-40 flex-shrink-0 self-stretch ${isLast ? 'rounded-bl-lg' : ''}`}
+                    >
+                      <img
+                        src={ep.imageUrl}
+                        alt=""
+                        className={`h-full w-full object-cover ${isLast ? 'rounded-bl-lg' : ''}`}
+                      />
+                    </button>
                   )}
                   <span className="flex-shrink-0 self-center py-2.5 text-ink-400">
                     E{ep.episode}
@@ -202,6 +223,14 @@ export function SeasonAccordion({
               );
             })}
         </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <ImageLightbox
+          images={episodeImages}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   );

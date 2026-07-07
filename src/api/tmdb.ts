@@ -13,6 +13,11 @@ const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY as string | undefined;
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
+// Episode stills double as both the small list-row thumbnail and the
+// source image for the full-screen lightbox — w200 (right for the
+// thumbnail) looked soft/blurry blown up to fill a phone screen, so
+// stills get the same larger size already used for backdrops.
+const TMDB_STILL_BASE = 'https://image.tmdb.org/t/p/w780';
 // How many backdrop images to keep for the detail screen's photo
 // strip. TMDB can return 100+ for popular shows, sorted best-first
 // (highest vote_average) — this is plenty for a preview strip.
@@ -26,6 +31,17 @@ function requireKey() {
   }
 }
 
+function mapTmdbResult(r: any): SearchResult {
+  return {
+    source: 'tmdb' as const,
+    sourceId: r.id,
+    title: r.name,
+    posterUrl: r.poster_path ? `${TMDB_IMAGE_BASE}${r.poster_path}` : undefined,
+    summary: r.overview || undefined,
+    year: r.first_air_date ? r.first_air_date.slice(0, 4) : undefined,
+  };
+}
+
 export async function searchTmdb(query: string): Promise<SearchResult[]> {
   requireKey();
   const res = await fetch(
@@ -33,14 +49,63 @@ export async function searchTmdb(query: string): Promise<SearchResult[]> {
   );
   if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
   const data = await res.json();
-  return (data.results || []).map((r: any) => ({
-    source: 'tmdb' as const,
-    sourceId: r.id,
-    title: r.name,
-    posterUrl: r.poster_path ? `${TMDB_IMAGE_BASE}${r.poster_path}` : undefined,
-    summary: r.overview || undefined,
-    year: r.first_air_date ? r.first_air_date.slice(0, 4) : undefined,
-  }));
+  return (data.results || []).map(mapTmdbResult);
+}
+
+// TMDB's TV genre id list is a small, stable, documented enum (not
+// something worth an extra API round-trip to look up) — used to turn
+// the genre *names* already cached on a show back into the ids
+// /discover/tv needs.
+const TMDB_TV_GENRE_IDS: Record<string, number> = {
+  'Action & Adventure': 10759,
+  Animation: 16,
+  Comedy: 35,
+  Crime: 80,
+  Documentary: 99,
+  Drama: 18,
+  Family: 10751,
+  Kids: 10762,
+  Mystery: 9648,
+  News: 10763,
+  Reality: 10764,
+  'Sci-Fi & Fantasy': 10765,
+  Soap: 10766,
+  Talk: 10767,
+  'War & Politics': 10768,
+  Western: 37,
+};
+
+const RELATED_SHOWS_LIMIT = 5;
+
+/** "Similar genre" shows via TMDB's /discover/tv, not the /similar
+ * endpoint — /similar is a fuzzier "people who liked this also liked"
+ * signal that in practice often surfaces loosely-related shows (spot
+ * checked: Breaking Bad's /similar led with a kids sitcom). Discovering
+ * by this show's own genre ids, AND-ed together, reliably returns
+ * shows that actually share its genre combination (Breaking Bad's
+ * Drama+Crime surfaces Law & Order, Criminal Minds, The Mentalist,
+ * ...). Only the top 2 genres are AND-ed — a show with 3+ genres would
+ * otherwise over-constrain the query into very few or zero results. */
+export async function getTmdbRelatedShows(
+  genres: string[] | undefined,
+  excludeShowId: number
+): Promise<SearchResult[]> {
+  requireKey();
+  const genreIds = (genres ?? [])
+    .map((g) => TMDB_TV_GENRE_IDS[g])
+    .filter((id): id is number => id != null);
+  if (genreIds.length === 0) return [];
+
+  const withGenres = genreIds.slice(0, 2).join(',');
+  const res = await fetch(
+    `${TMDB_BASE}/discover/tv?api_key=${TMDB_KEY}&with_genres=${withGenres}&sort_by=popularity.desc`
+  );
+  if (!res.ok) throw new Error(`TMDB discover fetch failed: ${res.status}`);
+  const data = await res.json();
+  return (data.results || [])
+    .filter((r: any) => r.id !== excludeShowId)
+    .slice(0, RELATED_SHOWS_LIMIT)
+    .map(mapTmdbResult);
 }
 
 export interface TmdbShowDetails {
@@ -159,7 +224,7 @@ export async function getTmdbSeasonEpisodes(showId: number, season: number) {
     episode: e.episode_number,
     title: e.name,
     airdate: e.air_date,
-    imageUrl: e.still_path ? `${TMDB_IMAGE_BASE}${e.still_path}` : undefined,
+    imageUrl: e.still_path ? `${TMDB_STILL_BASE}${e.still_path}` : undefined,
     episodeType:
       e.episode_type === 'finale' || e.episode_type === 'mid_season'
         ? e.episode_type
