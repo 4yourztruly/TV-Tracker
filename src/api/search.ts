@@ -46,6 +46,8 @@ export interface ShowDetails {
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
   genres?: string[];
+  ageRating?: string;
+  backdropUrls?: string[];
   seasons: SeasonSummary[];
 }
 

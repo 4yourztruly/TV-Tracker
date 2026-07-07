@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TrackedShow } from "../types/show";
+import { CURRENT_EPISODES_VERSION } from "../types/show";
 import {
   getNextEpisode,
   getLastWatchedEpisode,
@@ -33,15 +34,40 @@ export function ShowCard({ show, onReady }: Props) {
   const upToDate = isShowUpToDate(show);
   const finishedLabel = upToDate ? "Up to date" : "Completed";
   const caughtUpLabel = upToDate ? "Up to date" : "Caught up";
-  const nextEpisodeTitle = next
+  const nextEpisodeInfo = next
     ? show.seasons
         .find((season) => season.season === next.season)
-        ?.episodes?.find((episode) => episode.episode === next.episode)?.title
+        ?.episodes?.find((episode) => episode.episode === next.episode)
     : null;
+  const nextEpisodeTitle = nextEpisodeInfo?.title;
+
+  // TMDB's "finale" episode_type marks the last episode of ANY season,
+  // not just the show's last one — so a series finale is a finale
+  // that also falls in the show's highest known season, on a show
+  // that's actually done. Everything else with that type is just a
+  // season finale. Jikan-sourced episodes never have episodeType, so
+  // anime shows never show this badge.
+  const lastSeasonNumber =
+    show.seasons.length > 0 ? Math.max(...show.seasons.map((s) => s.season)) : null;
+  const finaleLabel =
+    nextEpisodeInfo?.episodeType === 'finale'
+      ? next?.season === lastSeasonNumber && show.seriesStatus === 'ended'
+        ? 'Series Finale'
+        : 'Season Finale'
+      : nextEpisodeInfo?.episodeType === 'mid_season'
+        ? 'Mid-Season Finale'
+        : null;
+
+  // A season's cache only counts as usable if it's also on the current
+  // episodesVersion — otherwise it predates a field (e.g. episodeType)
+  // this component now depends on, and needs a silent one-time refetch
+  // rather than permanently rendering without it. See CURRENT_EPISODES_VERSION.
+  function seasonCacheIsFresh(seasonInfo: TrackedShow['seasons'][number] | null | undefined) {
+    return !!seasonInfo?.episodes && seasonInfo.episodesVersion === CURRENT_EPISODES_VERSION;
+  }
 
   const seasonAlreadyCached = next
-    ? !!show.seasons.find((seasonInfo) => seasonInfo.season === next.season)
-        ?.episodes
+    ? seasonCacheIsFresh(show.seasons.find((seasonInfo) => seasonInfo.season === next.season))
     : true;
   const [titleReady, setTitleReady] = useState(seasonAlreadyCached);
   const [posterReady, setPosterReady] = useState(!show.posterUrl);
@@ -50,7 +76,7 @@ export function ShowCard({ show, onReady }: Props) {
     const season = next
       ? show.seasons.find((seasonInfo) => seasonInfo.season === next.season)
       : null;
-    if (!next || season?.episodes) {
+    if (!next || seasonCacheIsFresh(season)) {
       setTitleReady(true);
       return;
     }
@@ -350,6 +376,11 @@ export function ShowCard({ show, onReady }: Props) {
                     <p className="mt-0.5 truncate text-xs text-ink-500">
                       {nextEpisodeTitle}
                     </p>
+                  )}
+                  {finaleLabel && (
+                    <span className="mt-0.5 inline-block rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-300">
+                      {finaleLabel}
+                    </span>
                   )}
                 </>
               ) : (

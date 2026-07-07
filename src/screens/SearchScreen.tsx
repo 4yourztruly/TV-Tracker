@@ -119,6 +119,8 @@ export function SearchScreen() {
       seriesStatusVersion: 2,
       episodeRuntimeMinutes: details.episodeRuntimeMinutes,
       genres: details.genres,
+      ageRating: details.ageRating,
+      backdropUrls: details.backdropUrls,
       imdbRating,
       seasons: details.seasons,
       addedAt: Date.now(),

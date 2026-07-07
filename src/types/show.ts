@@ -13,12 +13,26 @@ export interface EpisodeInfo {
    * TMDB does (per-episode "still"); Jikan/MAL's episode list doesn't,
    * so anime episodes won't have one. */
   imageUrl?: string;
+  /** TMDB's own classification of the episode within its season —
+   * "finale" is the last episode of ANY season (not just the series'
+   * last one), so telling a season finale from a series finale means
+   * also checking whether this is the show's last known season. Jikan
+   * has no equivalent concept, so anime episodes never have this. */
+  episodeType?: 'mid_season' | 'finale';
 }
+
+/** Bumped whenever the episode-fetching logic starts capturing a field
+ * that older cached `EpisodeInfo[]` won't have (e.g. `episodeType`).
+ * A season's cache is considered stale if its `episodesVersion` isn't
+ * this, triggering a silent one-time refetch instead of permanently
+ * showing incomplete data for shows cached under an older version. */
+export const CURRENT_EPISODES_VERSION = 2;
 
 export interface SeasonSummary {
   season: number;
   episodeCount: number;
   episodes?: EpisodeInfo[]; // populated lazily when the season is expanded
+  episodesVersion?: number;
 }
 
 export interface TrackedShow {
@@ -72,6 +86,16 @@ export interface TrackedShow {
    * this field existed); `null` means checked and OMDb had no rating
    * for it — both are backfilled/left alone rather than retried. */
   imdbRating?: string | null;
+
+  /** Content/age rating (e.g. "TV-MA", "R"), when the source API
+   * reports one. Same undefined-vs-null convention as `imdbRating`. */
+  ageRating?: string | null;
+
+  /** Backdrop/preview images for the show (TMDB only — Jikan has no
+   * equivalent gallery), shown as a photo strip in the detail view.
+   * Same undefined-vs-null-ish convention as `genres`: undefined means
+   * never checked, an empty array means checked and none available. */
+  backdropUrls?: string[];
 
   seasons: SeasonSummary[];
 

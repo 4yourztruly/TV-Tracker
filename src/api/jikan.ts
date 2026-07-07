@@ -32,7 +32,16 @@ export interface JikanAnimeDetails {
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
   genres?: string[];
+  ageRating?: string;
   seasons: SeasonSummary[]; // anime is usually modeled as a single "season 1" block
+}
+
+/** Jikan's `rating` field is a free-text string like "R - 17+ (violence
+ * & profanity)" — this keeps just the short code (e.g. "R") to match
+ * the compact TV-MA/PG-13-style rating shown for TMDB shows. */
+function parseJikanAgeRating(rating: string | null | undefined): string | undefined {
+  if (!rating) return undefined;
+  return rating.split(' - ')[0].trim() || undefined;
 }
 
 /** MAL splits long-running anime into a separate entry per season/cour
@@ -135,6 +144,7 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
     seriesStatus,
     episodeRuntimeMinutes: parseJikanDurationMinutes(anime.duration),
     genres,
+    ageRating: parseJikanAgeRating(anime.rating),
     seasons: [{ season: 1, episodeCount: episodeCount ?? 0 }],
   };
 }

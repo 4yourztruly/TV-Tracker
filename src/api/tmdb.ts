@@ -12,6 +12,11 @@ import type { SearchResult, SeasonSummary, SeriesStatus } from '../types/show';
 const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY as string | undefined;
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
+const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
+// How many backdrop images to keep for the detail screen's photo
+// strip. TMDB can return 100+ for popular shows, sorted best-first
+// (highest vote_average) — this is plenty for a preview strip.
+const MAX_BACKDROPS = 12;
 
 function requireKey() {
   if (!TMDB_KEY) {
@@ -46,7 +51,21 @@ export interface TmdbShowDetails {
   seriesStatus: SeriesStatus;
   episodeRuntimeMinutes?: number;
   genres?: string[];
+  ageRating?: string;
+  backdropUrls?: string[];
   seasons: SeasonSummary[];
+}
+
+/** TMDB's content ratings are per-country. Prefers the US rating (the
+ * scheme most familiar to this app's users, e.g. "TV-MA"/"R"); falls
+ * back to whatever country reported one first rather than showing
+ * nothing. */
+function pickAgeRating(results: any[] | undefined): string | undefined {
+  if (!Array.isArray(results) || results.length === 0) return undefined;
+  const us = results.find((r) => r.iso_3166_1 === 'US' && r.rating);
+  if (us) return us.rating;
+  const any = results.find((r) => r.rating);
+  return any?.rating || undefined;
 }
 
 function mapTmdbSeriesStatus(status: string | undefined): SeriesStatus {
@@ -62,7 +81,9 @@ function mapTmdbSeriesStatus(status: string | undefined): SeriesStatus {
  * lazily (see getTmdbSeasonEpisodes) rather than all up front. */
 export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetails> {
   requireKey();
-  const res = await fetch(`${TMDB_BASE}/tv/${showId}?api_key=${TMDB_KEY}`);
+  const res = await fetch(
+    `${TMDB_BASE}/tv/${showId}?api_key=${TMDB_KEY}&append_to_response=content_ratings,images&include_image_language=en,null`
+  );
   if (!res.ok) throw new Error(`TMDB show fetch failed: ${res.status}`);
   const data = await res.json();
 
@@ -85,6 +106,14 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
       ? data.genres.map((g: any) => g.name).filter(Boolean)
       : undefined;
 
+  const ageRating = pickAgeRating(data.content_ratings?.results);
+
+  const backdropUrls: string[] | undefined = Array.isArray(data.images?.backdrops)
+    ? data.images.backdrops
+        .slice(0, MAX_BACKDROPS)
+        .map((b: any) => `${TMDB_BACKDROP_BASE}${b.file_path}`)
+    : undefined;
+
   return {
     title: data.name,
     summary: data.overview || undefined,
@@ -93,6 +122,8 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
     seriesStatus: mapTmdbSeriesStatus(data.status),
     episodeRuntimeMinutes,
     genres,
+    ageRating,
+    backdropUrls,
     seasons,
   };
 }
@@ -110,5 +141,9 @@ export async function getTmdbSeasonEpisodes(showId: number, season: number) {
     title: e.name,
     airdate: e.air_date,
     imageUrl: e.still_path ? `${TMDB_IMAGE_BASE}${e.still_path}` : undefined,
+    episodeType:
+      e.episode_type === 'finale' || e.episode_type === 'mid_season'
+        ? e.episode_type
+        : undefined,
   }));
 }

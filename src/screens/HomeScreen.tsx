@@ -141,7 +141,7 @@ export function HomeScreen() {
           </Section>
         )}
 
-        {visibleWatchHistory.length > 0 && (
+        {visibleWatchHistory.length > 0 && !isGrid && (
           <Section title="Watch History" grid={false}>
             {visibleWatchHistory.map(({ show, entry }) => (
               <WatchHistoryItem

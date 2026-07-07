@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
 import { getShowDetails } from '../api/search';
@@ -39,6 +40,8 @@ export function ShowDetailScreen() {
   const removeShow = useAppStore((s) => s.removeShow);
   const backfillGenres = useAppStore((s) => s.backfillGenres);
   const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
+  const backfillAgeRating = useAppStore((s) => s.backfillAgeRating);
+  const backfillBackdrops = useAppStore((s) => s.backfillBackdrops);
 
   // Deep-link from the Home screen's Watch History: which episode (if
   // any) to auto-expand/scroll to on open. Captured once on mount
@@ -64,6 +67,10 @@ export function ShowDetailScreen() {
   // same styled ConfirmDialog as the episode prompts instead of the
   // native browser confirm(), which looks jarringly out of place.
   const [showRemovePrompt, setShowRemovePrompt] = useState(false);
+
+  // Which backdrop image (if any) the full-screen photo viewer is
+  // open on — index into show.backdropUrls, null when closed.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Swipe-from-the-left-edge-to-go-back: a drag starting within
   // EDGE_WIDTH px of the screen's left edge drags the whole sheet
@@ -168,6 +175,42 @@ export function ShowDetailScreen() {
     };
   }, [trackedShow, backfillImdbRating]);
 
+  // Same one-time backfill, for shows tracked before `ageRating`/
+  // `backdropUrls` existed on TrackedShow.
+  useEffect(() => {
+    if (!trackedShow || trackedShow.ageRating !== undefined) return;
+    let cancelled = false;
+    getShowDetails(trackedShow.source, trackedShow.sourceId)
+      .then((details) => {
+        if (cancelled) return;
+        backfillAgeRating(trackedShow.id, details.ageRating ?? null);
+        syncToDrive();
+      })
+      .catch((err) => {
+        console.error('Failed to backfill age rating:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackedShow, backfillAgeRating]);
+
+  useEffect(() => {
+    if (!trackedShow || trackedShow.backdropUrls !== undefined) return;
+    let cancelled = false;
+    getShowDetails(trackedShow.source, trackedShow.sourceId)
+      .then((details) => {
+        if (cancelled) return;
+        backfillBackdrops(trackedShow.id, details.backdropUrls ?? []);
+        syncToDrive();
+      })
+      .catch((err) => {
+        console.error('Failed to backfill backdrop images:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackedShow, backfillBackdrops]);
+
   if (!show) return null;
 
   function handleClose() {
@@ -177,7 +220,7 @@ export function ShowDetailScreen() {
 
   function handleEdgePointerDown(e: React.PointerEvent) {
     if (e.clientX > EDGE_WIDTH) return; // only from the very left edge
-    if (skipPrompt || rewatchPrompt || showRemovePrompt) return; // a dialog is up
+    if (skipPrompt || rewatchPrompt || showRemovePrompt || lightboxIndex !== null) return; // a dialog is up
     dragStateRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -453,6 +496,11 @@ export function ShowDetailScreen() {
                 {show.genres && show.genres.length > 0 && (
                   <p className="text-xs text-ink-400">{show.genres.join(', ')}</p>
                 )}
+                {show.ageRating && (
+                  <span className="w-fit rounded border border-ink-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-300">
+                    {show.ageRating}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -470,6 +518,27 @@ export function ShowDetailScreen() {
 
             {show.summary && (
               <p className="mt-1 text-sm leading-relaxed text-ink-200">{show.summary}</p>
+            )}
+
+            {show.backdropUrls && show.backdropUrls.length > 0 && (
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                {show.backdropUrls.map((url, i) => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    className="flex-shrink-0"
+                  >
+                    <img
+                      src={url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-20 w-36 rounded-md bg-ink-800 object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
             )}
 
             <div className="mt-6 flex flex-col gap-2">
@@ -550,6 +619,14 @@ export function ShowDetailScreen() {
           actions={[
             { label: 'Remove from tracker', onClick: handleConfirmRemove, variant: 'danger' },
           ]}
+        />
+      )}
+
+      {lightboxIndex !== null && show.backdropUrls && (
+        <ImageLightbox
+          images={show.backdropUrls}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import type { EpisodeInfo, TrackedShow } from '../types/show';
+import { CURRENT_EPISODES_VERSION } from '../types/show';
 import { deriveStatus, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
@@ -34,6 +35,8 @@ interface AppState {
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
   backfillGenres: (id: string, genres: string[]) => void;
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
+  backfillAgeRating: (id: string, ageRating: string | null) => void;
+  backfillBackdrops: (id: string, backdropUrls: string[]) => void;
   markNextEpisodeWatched: (id: string) => void;
   unwatchLastEpisode: (id: string) => void;
   /** Which show/episode the Home screen's Watch History was last
@@ -166,7 +169,9 @@ export const useAppStore = create<AppState>()(
               ? touch({
                   ...sh,
                   seasons: sh.seasons.map((seasonInfo) =>
-                    seasonInfo.season === season ? { ...seasonInfo, episodes } : seasonInfo
+                    seasonInfo.season === season
+                      ? { ...seasonInfo, episodes, episodesVersion: CURRENT_EPISODES_VERSION }
+                      : seasonInfo
                   ),
                 })
               : sh
@@ -197,6 +202,20 @@ export const useAppStore = create<AppState>()(
       backfillImdbRating: (id, imdbRating) =>
         set((s) => ({
           shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, imdbRating }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern, for shows tracked before
+      // `ageRating` was cached on TrackedShow.
+      backfillAgeRating: (id, ageRating) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, ageRating }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern, for shows tracked before
+      // `backdropUrls` was cached on TrackedShow.
+      backfillBackdrops: (id, backdropUrls) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, backdropUrls }) : sh)),
         })),
 
       // Quick-action from the home screen card: marks whatever the

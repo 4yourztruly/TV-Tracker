@@ -19,7 +19,8 @@
       "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'node' } | Select-Object Id,ProcessName,Path)",
       "Bash(curl -s -o /dev/null -w \"5173:%{http_code}\\\\n\" http://localhost:5173/TV-Tracker/)",
       "Bash(curl -s -o /dev/null -w \"5174:%{http_code}\\\\n\" http://localhost:5174/TV-Tracker/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 \"https://api.themoviedb.org/3\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 \"https://api.themoviedb.org/3\")",
+      "Bash(npm run *)"
     ]
   }
 }
