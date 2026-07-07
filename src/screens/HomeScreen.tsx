@@ -50,7 +50,21 @@ export function HomeScreen() {
     setReadyIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
   const visibleShows = onlyShowWatching ? watching : shows;
-  const allReady = visibleShows.every((s) => readyIds.has(s.id));
+
+  // Safety net: a stalled network request (poor mobile connection,
+  // etc.) can leave a single card's poster/title promise never
+  // settling, which would otherwise hold the ENTIRE list hidden
+  // behind the spinner forever. Reveal everything anyway after a
+  // timeout — any card still mid-fetch just keeps loading in place
+  // instead of blocking every other already-ready card.
+  const [readyTimedOut, setReadyTimedOut] = useState(false);
+  useEffect(() => {
+    setReadyTimedOut(false);
+    const timer = setTimeout(() => setReadyTimedOut(true), 8000);
+    return () => clearTimeout(timer);
+  }, [shows]);
+
+  const allReady = readyTimedOut || visibleShows.every((s) => readyIds.has(s.id));
 
   // Watch History is the last section on the page, so growing/shrinking
   // it (marking an episode watched/unwatched from the home screen)

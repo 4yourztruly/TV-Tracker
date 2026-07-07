@@ -49,14 +49,21 @@ export function ShowCard({ show, onReady }: Props) {
   // anime shows never show this badge.
   const lastSeasonNumber =
     show.seasons.length > 0 ? Math.max(...show.seasons.map((s) => s.season)) : null;
-  const finaleLabel =
+  // TMDB doesn't tag premieres the way it tags finales (episode 1 of
+  // season 2 comes back as plain "standard"), but "first episode of a
+  // season past the first" is trivially derivable from the episode
+  // numbers we already have, no episodeType needed — so this also
+  // works for Jikan/anime, unlike the finale/mid-season badges.
+  const episodeTagLabel =
     nextEpisodeInfo?.episodeType === 'finale'
       ? next?.season === lastSeasonNumber && show.seriesStatus === 'ended'
         ? 'Series Finale'
         : 'Season Finale'
       : nextEpisodeInfo?.episodeType === 'mid_season'
         ? 'Mid-Season Finale'
-        : null;
+        : next && next.episode === 1 && next.season > 1
+          ? 'Season Premiere'
+          : null;
 
   // A season's cache only counts as usable if it's also on the current
   // episodesVersion — otherwise it predates a field (e.g. episodeType)
@@ -377,9 +384,15 @@ export function ShowCard({ show, onReady }: Props) {
                       {nextEpisodeTitle}
                     </p>
                   )}
-                  {finaleLabel && (
-                    <span className="mt-0.5 inline-block rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-300">
-                      {finaleLabel}
+                  {episodeTagLabel && (
+                    <span
+                      className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        episodeTagLabel === 'Season Premiere'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-signal-500/20 text-signal-500'
+                      }`}
+                    >
+                      {episodeTagLabel}
                     </span>
                   )}
                 </>

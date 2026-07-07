@@ -60,6 +60,30 @@ export interface TmdbShowDetails {
  * scheme most familiar to this app's users, e.g. "TV-MA"/"R"); falls
  * back to whatever country reported one first rather than showing
  * nothing. */
+/** Picks up to MAX_BACKDROPS images, preferring ones TMDB users have
+ * actually voted on (real votes correlate with distinct, curated
+ * shots) and spreading any remaining picks across the unvoted tail
+ * rather than taking a strict prefix of it. Unvoted images are often
+ * uploaded in batches of near-duplicate frames from the same scene —
+ * a straight `.slice(0, N)` risks grabbing several of those in a row
+ * for shows without enough voted backdrops to fill the strip. */
+function pickBackdrops(backdrops: any[] | undefined): string[] | undefined {
+  if (!Array.isArray(backdrops) || backdrops.length === 0) return undefined;
+  const voted = backdrops.filter((b) => b.vote_count > 0);
+  const unvoted = backdrops.filter((b) => b.vote_count === 0);
+
+  const picked = voted.slice(0, MAX_BACKDROPS);
+  const remaining = MAX_BACKDROPS - picked.length;
+  if (remaining > 0 && unvoted.length > 0) {
+    const stride = Math.max(1, Math.floor(unvoted.length / remaining));
+    for (let i = 0; i < unvoted.length && picked.length < MAX_BACKDROPS; i += stride) {
+      picked.push(unvoted[i]);
+    }
+  }
+
+  return picked.map((b) => `${TMDB_BACKDROP_BASE}${b.file_path}`);
+}
+
 function pickAgeRating(results: any[] | undefined): string | undefined {
   if (!Array.isArray(results) || results.length === 0) return undefined;
   const us = results.find((r) => r.iso_3166_1 === 'US' && r.rating);
@@ -107,12 +131,7 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
       : undefined;
 
   const ageRating = pickAgeRating(data.content_ratings?.results);
-
-  const backdropUrls: string[] | undefined = Array.isArray(data.images?.backdrops)
-    ? data.images.backdrops
-        .slice(0, MAX_BACKDROPS)
-        .map((b: any) => `${TMDB_BACKDROP_BASE}${b.file_path}`)
-    : undefined;
+  const backdropUrls = pickBackdrops(data.images?.backdrops);
 
   return {
     title: data.name,

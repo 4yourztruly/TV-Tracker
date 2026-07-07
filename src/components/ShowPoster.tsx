@@ -38,7 +38,6 @@ export function ShowPoster({ show, onReady }: Props) {
             src={show.posterUrl}
             alt=""
             className="h-full w-full object-cover"
-            loading="lazy"
             onLoad={() => setPosterReady(true)}
             onError={() => setPosterReady(true)}
           />
