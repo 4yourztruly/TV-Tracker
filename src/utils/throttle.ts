@@ -1,6 +1,6 @@
 /** Runs async tasks one at a time with a delay between each, so batch
  * operations (like refreshing episode counts for every tracked anime on
- * app load) don't burst past Jikan's ~3 req/sec rate limit. */
+ * app load) don't burst past an upstream API's rate limit. */
 export async function runThrottled<T>(
   tasks: Array<() => Promise<T>>,
   delayMs = 350

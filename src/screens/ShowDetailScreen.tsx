@@ -7,6 +7,7 @@ import { ImageLightbox } from '../components/ImageLightbox';
 import { RelatedShows } from '../components/RelatedShows';
 import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
+import { toFullscreenPosterUrl } from '../api/tmdb';
 import { getShowDetails, getRelatedShows } from '../api/search';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
 import { formatYearRange } from '../utils/formatYearRange';
@@ -42,6 +43,7 @@ export function ShowDetailScreen() {
   const setShowStatus = useAppStore((s) => s.setShowStatus);
   const removeShow = useAppStore((s) => s.removeShow);
   const backfillGenres = useAppStore((s) => s.backfillGenres);
+  const backfillCastNames = useAppStore((s) => s.backfillCastNames);
   const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
   const backfillAgeRating = useAppStore((s) => s.backfillAgeRating);
   const backfillBackdrops = useAppStore((s) => s.backfillBackdrops);
@@ -76,6 +78,9 @@ export function ShowDetailScreen() {
   // Which backdrop image (if any) the full-screen photo viewer is
   // open on — index into show.backdropUrls, null when closed.
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Separate from the backdrop lightbox above — the poster is its own
+  // single-image viewer, not part of the backdrop strip.
+  const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
 
   // Swipe-from-the-left-edge-to-go-back: a drag starting within
   // EDGE_WIDTH px of the screen's left edge drags the whole sheet
@@ -150,6 +155,7 @@ export function ShowDetailScreen() {
   const metaReady =
     show == null ||
     (show.genres !== undefined &&
+      show.castNames !== undefined &&
       show.ageRating !== undefined &&
       show.backdropUrls !== undefined &&
       show.startYear !== undefined) ||
@@ -171,6 +177,7 @@ export function ShowDetailScreen() {
     if (
       !trackedShow ||
       (trackedShow.genres !== undefined &&
+        trackedShow.castNames !== undefined &&
         trackedShow.ageRating !== undefined &&
         trackedShow.backdropUrls !== undefined &&
         trackedShow.startYear !== undefined)
@@ -182,6 +189,7 @@ export function ShowDetailScreen() {
       .then((details) => {
         if (cancelled) return;
         backfillGenres(trackedShow.id, details.genres ?? []);
+        backfillCastNames(trackedShow.id, details.castNames ?? []);
         backfillAgeRating(trackedShow.id, details.ageRating ?? null);
         backfillBackdrops(trackedShow.id, details.backdropUrls ?? []);
         backfillYears(trackedShow.id, details.startYear ?? null, details.endYear ?? null);
@@ -196,7 +204,7 @@ export function ShowDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [trackedShow, backfillGenres, backfillAgeRating, backfillBackdrops, backfillYears]);
+  }, [trackedShow, backfillGenres, backfillCastNames, backfillAgeRating, backfillBackdrops, backfillYears]);
 
   useEffect(() => {
     if (!trackedShow || trackedShow.imdbRating !== undefined) return;
@@ -222,7 +230,7 @@ export function ShowDetailScreen() {
     // TMDB's related-shows query needs genres — wait for those to
     // have settled (see the genres backfill effect above) instead of
     // firing with an empty genre list and permanently caching an
-    // empty result. Not a concern on the Jikan path, which doesn't
+    // empty result. Not a concern on the AniList path, which doesn't
     // use genres at all (see getRelatedShows).
     if (trackedShow.source === 'tmdb' && trackedShow.genres === undefined) return;
     let cancelled = false;
@@ -527,11 +535,17 @@ export function ShowDetailScreen() {
           >
             <div className="flex gap-4">
               {show.posterUrl ? (
-                <img
-                  src={show.posterUrl}
-                  alt=""
-                  className="h-32 w-22 flex-shrink-0 rounded-lg object-cover bg-ink-800"
-                />
+                <button
+                  type="button"
+                  onClick={() => setPosterLightboxOpen(true)}
+                  className="h-32 w-22 flex-shrink-0"
+                >
+                  <img
+                    src={show.posterUrl}
+                    alt=""
+                    className="h-full w-full rounded-lg object-cover bg-ink-800"
+                  />
+                </button>
               ) : (
                 <div className="h-32 w-22 flex-shrink-0 rounded-lg bg-ink-800" />
               )}
@@ -579,6 +593,9 @@ export function ShowDetailScreen() {
                 )}
                 {show.genres && show.genres.length > 0 && (
                   <p className="text-xs text-ink-400">{show.genres.join(', ')}</p>
+                )}
+                {show.castNames && show.castNames.length > 0 && (
+                  <p className="text-xs text-ink-400">{show.castNames.join(', ')}</p>
                 )}
                 {show.ageRating && (
                   <span className="w-fit rounded border border-ink-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-300">
@@ -719,6 +736,14 @@ export function ShowDetailScreen() {
           images={show.backdropUrls}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+        />
+      )}
+
+      {posterLightboxOpen && show.posterUrl && (
+        <ImageLightbox
+          images={[toFullscreenPosterUrl(show.posterUrl)]}
+          initialIndex={0}
+          onClose={() => setPosterLightboxOpen(false)}
         />
       )}
     </div>

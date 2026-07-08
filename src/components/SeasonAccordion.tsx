@@ -40,7 +40,7 @@ export function SeasonAccordion({
   const next = getNextEpisode(show);
 
   // Stills for the full-screen viewer, in episode order — only
-  // episodes that actually have one (Jikan/anime episodes never do).
+  // episodes that actually have one (AniList/anime episodes never do).
   const episodeImages = (episodes ?? [])
     .filter((ep): ep is EpisodeInfo & { imageUrl: string } => !!ep.imageUrl)
     .map((ep) => ep.imageUrl);

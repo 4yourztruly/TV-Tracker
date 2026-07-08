@@ -250,7 +250,7 @@ export function SettingsScreen() {
 
       <section className="flex flex-col gap-1">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">About</h2>
-        <p className="text-xs text-ink-400">TV Tracker · episode counts via TMDB and MyAnimeList (Jikan)</p>
+        <p className="text-xs text-ink-400">TV Tracker · episode counts via TMDB and AniList</p>
       </section>
     </div>
   );

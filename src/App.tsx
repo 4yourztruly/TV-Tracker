@@ -46,12 +46,25 @@ export default function App() {
   // asynchronously by zustand's persist middleware. Without this gate,
   // the Home screen briefly renders as if nothing were tracked yet and
   // then pops in the real list a moment later — hold a spinner over
-  // the whole app shell until that initial read completes instead.
+  // just the content area (Header/TabBar stay put and usable) until
+  // that initial read completes instead.
   const [hasHydrated, setHasHydrated] = useState(() => useAppStore.persist.hasHydrated());
 
   useEffect(() => {
     if (hasHydrated) return;
-    return useAppStore.persist.onFinishHydration(() => setHasHydrated(true));
+    const unsubscribe = useAppStore.persist.onFinishHydration(() => setHasHydrated(true));
+    // Safety net: on iOS Safari/WKWebView, IndexedDB's open request can
+    // occasionally just hang — never firing onsuccess, onerror, or
+    // onblocked — which would otherwise leave this gate (and the whole
+    // app) stuck on a spinner forever. Give up waiting after 8s (same
+    // timeout HomeScreen's own readyTimedOut safety net uses) and show
+    // the app anyway; if hydration does eventually settle after that,
+    // the store's own state update still flows through normally.
+    const timeout = setTimeout(() => setHasHydrated(true), 8000);
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [hasHydrated]);
 
   useEffect(() => {
@@ -116,25 +129,25 @@ export default function App() {
     };
   }, [setGoogleAuthReady, setSignedIn]);
 
-  if (!hasHydrated) {
-    return (
-      <div className="flex min-h-dvh w-full items-center justify-center bg-ink-950">
-        <Spinner size={40} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-dvh w-full justify-center bg-ink-950">
       <div className="flex h-dvh w-full max-w-[480px] flex-col md:border-x md:border-ink-800">
         <Header />
         <main className="min-h-0 flex-1 overflow-y-auto">
-          {activeTab === 'home' && <HomeScreen />}
-          {activeTab === 'search' && <SearchScreen />}
-          {activeTab === 'settings' && <SettingsScreen />}
+          {!hasHydrated ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner size={40} />
+            </div>
+          ) : (
+            <>
+              {activeTab === 'home' && <HomeScreen />}
+              {activeTab === 'search' && <SearchScreen />}
+              {activeTab === 'settings' && <SettingsScreen />}
+            </>
+          )}
         </main>
         <TabBar />
-        {(selectedShowId || previewShow) && <ShowDetailScreen />}
+        {hasHydrated && (selectedShowId || previewShow) && <ShowDetailScreen />}
       </div>
     </div>
   );

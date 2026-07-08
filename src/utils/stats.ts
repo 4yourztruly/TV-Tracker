@@ -2,7 +2,7 @@ import type { TrackedShow } from '../types/show';
 import { getWatchedEpisodeCount, getTotalWatchInstances } from './progress';
 
 /** Used when a show's source API doesn't report an episode runtime
- * (TMDB's episode_run_time and Jikan's duration can both be missing).
+ * (TMDB's episode_run_time and AniList's duration can both be missing).
  * 24 minutes is a reasonable general TV/anime episode average. */
 const DEFAULT_RUNTIME_MINUTES = 24;
 

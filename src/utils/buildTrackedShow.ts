@@ -20,13 +20,17 @@ export async function buildTrackedShow(result: SearchResult): Promise<TrackedSho
   // A related-shows failure shouldn't block adding/previewing the show
   // at all — it's a nice-to-have, so it falls back to empty instead of
   // rejecting the whole build.
-  const [imdbRating, relatedShows] = await Promise.all([
+  const [omdbRating, relatedShows] = await Promise.all([
     getImdbRating(result.title, result.year),
     getRelatedShows(result.source, result.sourceId, details.genres).catch((err) => {
       console.error('Failed to fetch related shows:', err);
       return [];
     }),
   ]);
+  // OMDb has thin coverage of anime — when it comes back with nothing
+  // (null/undefined) but the source itself reports a community score
+  // (AniList), show that instead of no rating at all.
+  const imdbRating = omdbRating != null ? omdbRating : (details.communityScore ?? omdbRating);
   return {
     id: crypto.randomUUID(),
     source: result.source,
@@ -41,11 +45,18 @@ export async function buildTrackedShow(result: SearchResult): Promise<TrackedSho
     seriesStatusUpdatedAt: Date.now(),
     seriesStatusVersion: 2,
     episodeRuntimeMinutes: details.episodeRuntimeMinutes,
-    genres: details.genres,
-    ageRating: details.ageRating,
-    backdropUrls: details.backdropUrls,
-    startYear: details.startYear,
-    endYear: details.endYear,
+    // Each of these must resolve to a concrete "checked" value (even an
+    // empty one), never bare `undefined` — ShowDetailScreen's preview
+    // path (isPreview, no `trackedShow`) never runs the backfill retry
+    // that normally covers an already-tracked show missing one of
+    // these, so an `undefined` here left contentReady stuck behind the
+    // spinner forever instead of just meaning "nothing found".
+    genres: details.genres ?? [],
+    castNames: details.castNames ?? [],
+    ageRating: details.ageRating ?? null,
+    backdropUrls: details.backdropUrls ?? [],
+    startYear: details.startYear ?? null,
+    endYear: details.endYear ?? null,
     imdbRating,
     relatedShows,
     seasons: details.seasons,

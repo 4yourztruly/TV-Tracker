@@ -34,6 +34,7 @@ interface AppState {
   cacheSeasonEpisodes: (id: string, season: number, episodes: EpisodeInfo[]) => void;
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
   backfillGenres: (id: string, genres: string[]) => void;
+  backfillCastNames: (id: string, castNames: string[]) => void;
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
   backfillAgeRating: (id: string, ageRating: string | null) => void;
   backfillBackdrops: (id: string, backdropUrls: string[]) => void;
@@ -196,6 +197,13 @@ export const useAppStore = create<AppState>()(
       backfillGenres: (id, genres) =>
         set((s) => ({
           shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, genres }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern, for shows tracked before
+      // `castNames` was cached on TrackedShow.
+      backfillCastNames: (id, castNames) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, castNames }) : sh)),
         })),
 
       // Same one-time-backfill pattern as genres, for shows tracked

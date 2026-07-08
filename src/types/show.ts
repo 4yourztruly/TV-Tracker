@@ -1,6 +1,6 @@
 export type WatchStatus = 'unwatched' | 'watching' | 'completed';
 
-export type ShowSource = 'tmdb' | 'jikan';
+export type ShowSource = 'tmdb' | 'anilist';
 
 export type SeriesStatus = 'ended' | 'ongoing' | 'unknown';
 
@@ -10,14 +10,14 @@ export interface EpisodeInfo {
   title?: string;
   airdate?: string;
   /** Episode still/thumbnail image, when the source provides one.
-   * TMDB does (per-episode "still"); Jikan/MAL's episode list doesn't,
+   * TMDB does (per-episode "still"); AniList's episode list doesn't,
    * so anime episodes won't have one. */
   imageUrl?: string;
   /** TMDB's own classification of the episode within its season —
    * "finale" is the last episode of ANY season (not just the series'
    * last one), so telling a season finale from a series finale means
-   * also checking whether this is the show's last known season. Jikan
-   * has no equivalent concept, so anime episodes never have this. */
+   * also checking whether this is the show's last known season.
+   * AniList has no equivalent concept, so anime episodes never have this. */
   episodeType?: 'mid_season' | 'finale';
 }
 
@@ -65,7 +65,7 @@ export interface TrackedShow {
   watchHistory?: { season: number; episode: number; watchedAt: number }[];
 
   /** Total known episode count. May be null for ongoing anime with an
-   * unknown final count (Jikan can return null). */
+   * unknown final count (AniList can return null). */
   totalEpisodes: number | null;
 
   /** Whether the real-world series is finished or still expected to
@@ -82,11 +82,19 @@ export interface TrackedShow {
   /** Genre names, when the source API reports them. */
   genres?: string[];
 
+  /** Up to a handful of main cast/voice-actor names, when the source
+   * provides them (TMDB's `credits`, AniList's `characters`). Same
+   * undefined-vs-empty convention as `genres`. */
+  castNames?: string[];
+
   /** IMDb rating (e.g. "8.4"), fetched once when the show is added and
    * cached here so it isn't re-fetched from OMDb every time the show
    * is viewed. `undefined` means never checked (e.g. tracked before
    * this field existed); `null` means checked and OMDb had no rating
-   * for it — both are backfilled/left alone rather than retried. */
+   * for it — both are backfilled/left alone rather than retried. For
+   * anime where OMDb has no match, this falls back to AniList's own
+   * community score instead (see buildTrackedShow) — still just a
+   * plain rating number to the UI, not literally sourced from IMDb. */
   imdbRating?: string | null;
 
   /** Content/age rating (e.g. "TV-MA", "R"), when the source API
@@ -101,14 +109,14 @@ export interface TrackedShow {
   startYear?: string | null;
   endYear?: string | null;
 
-  /** Backdrop/preview images for the show (TMDB only — Jikan has no
+  /** Backdrop/preview images for the show (TMDB only — AniList has no
    * equivalent gallery), shown as a photo strip in the detail view.
    * Same undefined-vs-null-ish convention as `genres`: undefined means
    * never checked, an empty array means checked and none available. */
   backdropUrls?: string[];
 
   /** Up to 5 "you might also like" shows for the detail screen's
-   * Related Shows section (TMDB: genre overlap; Jikan: MAL community
+   * Related Shows section (TMDB: genre overlap; AniList: community
    * recommendations — see getRelatedShows). Same undefined-vs-empty
    * convention as `backdropUrls`. */
   relatedShows?: SearchResult[];

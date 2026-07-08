@@ -57,7 +57,7 @@ export default defineConfig({
         // launch from a fully offline cold start, not just stay usable
         // once already open.
         globPatterns: ["**/*.{js,css,html,svg}"],
-        // API calls (Drive, TMDB, Jikan, Google auth) should never be
+        // API calls (Drive, TMDB, AniList, Google auth) should never be
         // served from a stale cache — always try the network first and
         // only exist in the runtime cache as a fallback for the
         // shell/assets, never for live data.
@@ -67,9 +67,9 @@ export default defineConfig({
               url.origin === "https://www.googleapis.com" ||
               url.origin === "https://accounts.google.com" ||
               url.origin === "https://api.themoviedb.org" ||
-              url.origin === "https://api.jikan.moe" ||
+              url.origin === "https://graphql.anilist.co" ||
               url.origin === "https://image.tmdb.org" ||
-              url.origin === "https://cdn.myanimelist.net",
+              url.origin === "https://s4.anilist.co",
             handler: "NetworkOnly",
           },
         ],

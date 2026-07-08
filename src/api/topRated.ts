@@ -17,7 +17,7 @@ export function getTopRatedShows(): TopRatedShowEntry[] {
  * — no fetch, everything needed is already hardcoded on the entry. */
 export function topRatedToSearchResult(entry: TopRatedShowEntry): SearchResult {
   return {
-    source: 'tmdb',
+    source: entry.source ?? 'tmdb',
     sourceId: entry.sourceId,
     title: entry.title,
     posterUrl: entry.posterUrl,

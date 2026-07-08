@@ -24,6 +24,16 @@ const TMDB_STILL_BASE = 'https://image.tmdb.org/t/p/w780';
 // (highest vote_average) — this is plenty for a preview strip.
 const MAX_BACKDROPS = 12;
 
+/** The poster stored on a show is the small w200 card-thumbnail size —
+ * fine for a poster-sized card, but soft/blurry blown up to fill a
+ * phone screen in the full-screen lightbox. Upsizes to the same larger
+ * size already used for backdrops/stills when shown that way. Passes
+ * non-TMDB (AniList) URLs through unchanged — those are already a
+ * reasonably large size. */
+export function toFullscreenPosterUrl(url: string): string {
+  return url.startsWith(TMDB_IMAGE_BASE) ? url.replace(TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE) : url;
+}
+
 function requireKey() {
   if (!TMDB_KEY) {
     throw new Error(
@@ -121,7 +131,18 @@ export interface TmdbShowDetails {
   backdropUrls?: string[];
   startYear?: string;
   endYear?: string;
+  castNames?: string[];
   seasons: SeasonSummary[];
+}
+
+const MAX_CAST_NAMES = 4;
+
+/** TMDB's `credits` is ordered by billing already — top-billed cast
+ * first — so a straight slice of the front gives the main actors. */
+function pickCastNames(cast: any[] | undefined): string[] | undefined {
+  if (!Array.isArray(cast) || cast.length === 0) return undefined;
+  const names = cast.map((c) => c.name).filter(Boolean).slice(0, MAX_CAST_NAMES);
+  return names.length > 0 ? names : undefined;
 }
 
 /** TMDB's content ratings are per-country. Prefers the US rating (the
@@ -174,7 +195,7 @@ function mapTmdbSeriesStatus(status: string | undefined): SeriesStatus {
 export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetails> {
   requireKey();
   const res = await fetchWithTimeout(
-    `${TMDB_BASE}/tv/${showId}?api_key=${TMDB_KEY}&append_to_response=content_ratings,images&include_image_language=en,null`
+    `${TMDB_BASE}/tv/${showId}?api_key=${TMDB_KEY}&append_to_response=content_ratings,images,credits&include_image_language=en,null`
   );
   if (!res.ok) throw new Error(`TMDB show fetch failed: ${res.status}`);
   const data = await res.json();
@@ -219,6 +240,7 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
     backdropUrls,
     startYear,
     endYear,
+    castNames: pickCastNames(data.credits?.cast),
     seasons,
   };
 }

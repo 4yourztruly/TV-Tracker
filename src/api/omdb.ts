@@ -3,7 +3,7 @@
  * https://www.omdbapi.com/apikey.aspx (1,000 requests/day on the free
  * tier). OMDb has no concept of TMDB/MAL ids, so lookups are by title
  * (optionally scoped by year to disambiguate remakes/similarly-named
- * shows) rather than a direct id join like the TMDB/Jikan clients use.
+ * shows) rather than a direct id join like the TMDB/AniList clients use.
  *
  * This is a nice-to-have overlay on top of the show data, not core
  * data itself: a missing key, a miss on OMDb's side (common for

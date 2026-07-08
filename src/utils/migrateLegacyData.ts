@@ -2,14 +2,19 @@ import type { TrackedShow } from '../types/show';
 
 /**
  * One-time migrations for shows written by older versions of the app.
- * Two legacy shapes are handled, and both funnel into the current
- * `watchedEpisodes: Record<string, number>` (watch count per episode)
- * shape:
+ * Handles:
  *
  *  1. Oldest: a single `lastWatchedSeason`/`lastWatchedEpisode` pointer
  *     instead of any per-episode tracking at all.
  *  2. Middle: `watchedEpisodes` as a plain string array (a watched
- *     set, no rewatch counts) instead of today's count map.
+ *     set, no rewatch counts) instead of today's count map, both
+ *     funneling into the current `watchedEpisodes: Record<string,
+ *     number>` (watch count per episode) shape.
+ *  3. `source: 'jikan'` renamed to `'anilist'` when the anime backend
+ *     switched from Jikan (MyAnimeList) to AniList. `sourceId` keeps
+ *     meaning the same MyAnimeList id either way — AniList's schema
+ *     supports looking a show up by MAL id (`idMal`), so no id
+ *     remapping was needed, just this label rename.
  *
  * Safe to run on any tracker data, migrated or not — already-migrated
  * shows pass through untouched.
@@ -88,15 +93,28 @@ export function migrateLegacyTrackerData<T extends { shows?: unknown }>(data: T)
 
   let migratedCount = 0;
   const shows = data.shows.map((show: unknown) => {
-    if (isPointerLegacyShow(show)) {
-      migratedCount += 1;
-      return migratePointerShow(show);
+    let migrated = show;
+    let didMigrate = false;
+
+    if (isPointerLegacyShow(migrated)) {
+      migrated = migratePointerShow(migrated);
+      didMigrate = true;
     }
-    if (isArrayLegacyShow(show)) {
-      migratedCount += 1;
-      return migrateArrayShow(show);
+    if (isArrayLegacyShow(migrated)) {
+      migrated = migrateArrayShow(migrated);
+      didMigrate = true;
     }
-    return show;
+    if (
+      typeof migrated === 'object' &&
+      migrated !== null &&
+      (migrated as Record<string, unknown>).source === 'jikan'
+    ) {
+      migrated = { ...(migrated as Record<string, unknown>), source: 'anilist' };
+      didMigrate = true;
+    }
+
+    if (didMigrate) migratedCount += 1;
+    return migrated;
   });
 
   if (migratedCount === 0) return data;

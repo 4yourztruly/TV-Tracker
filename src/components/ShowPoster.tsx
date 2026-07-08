@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TrackedShow } from '../types/show';
 import { getPosterProgress } from '../utils/progress';
 import { useAppStore } from '../store/store';
@@ -22,10 +22,20 @@ export function ShowPoster({ show, onReady }: Props) {
   const setSelectedShow = useAppStore((s) => s.setSelectedShow);
   const progress = getPosterProgress(show);
   const [posterReady, setPosterReady] = useState(!show.posterUrl);
+  const posterImgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (posterReady) onReady?.();
   }, [posterReady, onReady]);
+
+  // A poster already sitting in the browser's cache can have its `load`
+  // event fire before/without this component's onLoad listener catching
+  // it (a known React+cached-<img> race, especially on iOS Safari) —
+  // this catches that case on mount instead of waiting on onLoad alone.
+  useEffect(() => {
+    if (posterReady) return;
+    if (posterImgRef.current?.complete) setPosterReady(true);
+  }, [posterReady]);
 
   return (
     <button
@@ -35,6 +45,7 @@ export function ShowPoster({ show, onReady }: Props) {
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-inset ring-ink-800 transition-transform group-active:scale-[0.97]">
         {show.posterUrl ? (
           <img
+            ref={posterImgRef}
             src={show.posterUrl}
             alt=""
             className="h-full w-full object-cover"

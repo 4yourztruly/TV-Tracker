@@ -46,7 +46,7 @@ export function ShowCard({ show, onReady }: Props) {
   // not just the show's last one — so a series finale is a finale
   // that also falls in the show's highest known season, on a show
   // that's actually done. Everything else with that type is just a
-  // season finale. Jikan-sourced episodes never have episodeType, so
+  // season finale. AniList-sourced episodes never have episodeType, so
   // anime shows never show this badge.
   const lastSeasonNumber =
     show.seasons.length > 0 ? Math.max(...show.seasons.map((s) => s.season)) : null;
@@ -54,7 +54,7 @@ export function ShowCard({ show, onReady }: Props) {
   // season 2 comes back as plain "standard"), but "first episode of a
   // season past the first" is trivially derivable from the episode
   // numbers we already have, no episodeType needed — so this also
-  // works for Jikan/anime, unlike the finale/mid-season badges.
+  // works for AniList/anime, unlike the finale/mid-season badges.
   const episodeTagLabel =
     nextEpisodeInfo?.episodeType === 'finale'
       ? next?.season === lastSeasonNumber && show.seriesStatus === 'ended'
@@ -79,6 +79,19 @@ export function ShowCard({ show, onReady }: Props) {
     : true;
   const [titleReady, setTitleReady] = useState(seasonAlreadyCached);
   const [posterReady, setPosterReady] = useState(!show.posterUrl);
+  const posterImgRef = useRef<HTMLImageElement>(null);
+
+  // A poster already sitting in the browser's cache (very likely right
+  // after navigating away from Home and back) can have its `load`
+  // event fire before/without this component's onLoad listener
+  // catching it — a known React+cached-<img> race, especially on iOS
+  // Safari/WKWebView — which left posterReady stuck false and the
+  // whole list hidden behind Home's spinner until its 8s timeout. This
+  // catches that case on mount instead of waiting on onLoad alone.
+  useEffect(() => {
+    if (posterReady) return;
+    if (posterImgRef.current?.complete) setPosterReady(true);
+  }, [posterReady]);
 
   useEffect(() => {
     const season = next
@@ -347,6 +360,7 @@ export function ShowCard({ show, onReady }: Props) {
       >
         {show.posterUrl ? (
           <img
+            ref={posterImgRef}
             src={show.posterUrl}
             alt=""
             className="h-full w-24 flex-shrink-0 object-cover bg-ink-800"

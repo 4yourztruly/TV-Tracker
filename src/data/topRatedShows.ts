@@ -1,3 +1,5 @@
+import type { ShowSource } from '../types/show';
+
 /** Curated "acclaimed/top rated" TV & anime titles with a hand-entered
  * IMDb rating, used to seed the "Top Rated" browse grid on the Search
  * screen without needing any API calls to build it. These numbers are
@@ -6,8 +8,8 @@
  * approximate. Order is the display order (highest rating first).
  *
  * `sourceId`/`posterUrl` are hardcoded too — resolved once (see
- * scripts used to build this list) rather than looked up from TMDB
- * every time the Search screen opens. If TMDB ever changes a poster
+ * scripts used to build this list) rather than looked up live every
+ * time the Search screen opens. If the source ever changes a poster
  * or removes a show, this drifts rather than fetches live; that's an
  * acceptable trade for the grid never firing ~100 searches per
  * session. Tapping a tile still fetches full details as normal (see
@@ -21,6 +23,10 @@ export interface TopRatedShowEntry {
    * metadata, mainly to sharpen the OMDb rating lookup once a tile is
    * tapped and added (see utils/buildTrackedShow). */
   year?: string;
+  /** Defaults to 'tmdb' when omitted — only entries that need the
+   * AniList-only path (e.g. an arc/season TMDB doesn't index as its
+   * own show, like Bleach: Thousand-Year Blood War) set this. */
+  source?: ShowSource;
   sourceId: number;
   posterUrl: string;
 }
@@ -44,7 +50,7 @@ export const TOP_RATED_SHOWS: TopRatedShowEntry[] = [
   { title: 'Hunter x Hunter', imdbRating: '9.0', year: '2011', sourceId: 46298, posterUrl: 'https://image.tmdb.org/t/p/w200/i2EEr2uBvRlAwJ8d8zTG2Y19mIa.jpg' },
   { title: 'Dexter: Resurrection', imdbRating: '9.0', year: '2025', sourceId: 259909, posterUrl: 'https://image.tmdb.org/t/p/w200/kEHZfSZhZKDot4wqurgIzMUNq1W.jpg' },
   { title: 'One Piece', imdbRating: '9.0', year: '1999', sourceId: 37854, posterUrl: 'https://image.tmdb.org/t/p/w200/dB4EDhre2dsC2kxYDavyKWqLQwi.jpg' },
-  { title: 'Bleach: Thousand-Year Blood War', imdbRating: '9.0', year: '2022', sourceId: 30984, posterUrl: 'https://image.tmdb.org/t/p/w200/5iVUUnE2tgBPypACYNobCKHagfV.jpg' },
+  { title: 'Bleach: Thousand-Year Blood War', imdbRating: '9.0', year: '2022', source: 'anilist', sourceId: 41467, posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx116674-p3zK4PUX2Aag.jpg' },
   { title: 'The Pitt', imdbRating: '8.9', year: '2025', sourceId: 250307, posterUrl: 'https://image.tmdb.org/t/p/w200/kvFSpESyBZMjaeOJDx7RS3P1jey.jpg' },
   { title: 'Firefly', imdbRating: '8.9', year: '2002', sourceId: 1437, posterUrl: 'https://image.tmdb.org/t/p/w200/vZcKsy4sGAvWMVqLluwYuoi11Kj.jpg' },
   { title: 'Death Note', imdbRating: '8.9', year: '2006', sourceId: 13916, posterUrl: 'https://image.tmdb.org/t/p/w200/tCZFfYTIwrR7n94J6G14Y4hAFU6.jpg' },
