@@ -28,6 +28,7 @@ export function ShowCard({ show, onReady }: Props) {
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
   const updateSeriesStatus = useAppStore((s) => s.updateSeriesStatus);
   const backfillGenres = useAppStore((s) => s.backfillGenres);
+  const backfillYears = useAppStore((s) => s.backfillYears);
 
   const next = getNextEpisode(show);
   const left = getEpisodesLeft(show);
@@ -132,6 +133,10 @@ export function ShowCard({ show, onReady }: Props) {
       .then((details) => {
         if (cancelled) return;
         updateSeriesStatus(show.id, details.seriesStatus);
+        // Free — this fetch already returns startYear/endYear, so
+        // catch up a show whose endYear wasn't known yet (e.g. it was
+        // still airing when originally added) at the same time.
+        backfillYears(show.id, details.startYear ?? show.startYear ?? null, details.endYear ?? null);
         syncToDrive();
       })
       .catch((err) => {
@@ -141,7 +146,7 @@ export function ShowCard({ show, onReady }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [show, updateSeriesStatus]);
+  }, [show, updateSeriesStatus, backfillYears]);
 
   // One-time backfill for shows tracked before `genres` existed on
   // TrackedShow. `undefined` means "never checked"; backfillGenres

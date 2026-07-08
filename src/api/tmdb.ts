@@ -1,4 +1,5 @@
 import type { SearchResult, SeasonSummary, SeriesStatus } from '../types/show';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 /**
  * TMDB (The Movie Database) — free API key, strong coverage of
@@ -44,7 +45,7 @@ function mapTmdbResult(r: any): SearchResult {
 
 export async function searchTmdb(query: string): Promise<SearchResult[]> {
   requireKey();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${TMDB_BASE}/search/tv?query=${encodeURIComponent(query)}&api_key=${TMDB_KEY}`
   );
   if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
@@ -97,7 +98,7 @@ export async function getTmdbRelatedShows(
   if (genreIds.length === 0) return [];
 
   const withGenres = genreIds.slice(0, 2).join(',');
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${TMDB_BASE}/discover/tv?api_key=${TMDB_KEY}&with_genres=${withGenres}&sort_by=popularity.desc`
   );
   if (!res.ok) throw new Error(`TMDB discover fetch failed: ${res.status}`);
@@ -118,6 +119,8 @@ export interface TmdbShowDetails {
   genres?: string[];
   ageRating?: string;
   backdropUrls?: string[];
+  startYear?: string;
+  endYear?: string;
   seasons: SeasonSummary[];
 }
 
@@ -170,7 +173,7 @@ function mapTmdbSeriesStatus(status: string | undefined): SeriesStatus {
  * lazily (see getTmdbSeasonEpisodes) rather than all up front. */
 export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetails> {
   requireKey();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${TMDB_BASE}/tv/${showId}?api_key=${TMDB_KEY}&append_to_response=content_ratings,images&include_image_language=en,null`
   );
   if (!res.ok) throw new Error(`TMDB show fetch failed: ${res.status}`);
@@ -197,6 +200,12 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
 
   const ageRating = pickAgeRating(data.content_ratings?.results);
   const backdropUrls = pickBackdrops(data.images?.backdrops);
+  const startYear: string | undefined = data.first_air_date
+    ? data.first_air_date.slice(0, 4)
+    : undefined;
+  const endYear: string | undefined = data.last_air_date
+    ? data.last_air_date.slice(0, 4)
+    : undefined;
 
   return {
     title: data.name,
@@ -208,13 +217,15 @@ export async function getTmdbShowDetails(showId: number): Promise<TmdbShowDetail
     genres,
     ageRating,
     backdropUrls,
+    startYear,
+    endYear,
     seasons,
   };
 }
 
 export async function getTmdbSeasonEpisodes(showId: number, season: number) {
   requireKey();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${TMDB_BASE}/tv/${showId}/season/${season}?api_key=${TMDB_KEY}`
   );
   if (!res.ok) throw new Error(`TMDB season fetch failed: ${res.status}`);

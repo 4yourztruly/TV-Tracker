@@ -11,6 +11,8 @@
  * all just mean "no rating shown" rather than a visible error.
  */
 
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+
 const OMDB_KEY = import.meta.env.VITE_OMDB_API_KEY as string | undefined;
 const OMDB_BASE = 'https://www.omdbapi.com/';
 
@@ -23,6 +25,25 @@ const OMDB_BASE = 'https://www.omdbapi.com/';
 // retried rather than a temporary outage looking like "no rating"
 // forever once callers persist it onto a show.
 const ratingCache = new Map<string, string | null>();
+
+function normalizeTitle(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+async function fetchOmdbByTitle(title: string, year: string | undefined): Promise<any> {
+  const params = new URLSearchParams({ apikey: OMDB_KEY as string, t: title, type: 'series' });
+  if (year) params.set('y', year);
+  const res = await fetchWithTimeout(`${OMDB_BASE}?${params.toString()}`);
+  if (!res.ok) {
+    // Includes OMDb's "Request limit reached!" 401 on the free tier's
+    // daily cap — transient, not "this show has no rating".
+    throw new Error(`OMDb lookup failed: ${res.status}`);
+  }
+  return res.json();
+}
 
 /** Resolves to the IMDb rating (e.g. "8.4") for a show title.
  * - A string: OMDb has a rating.
@@ -42,18 +63,24 @@ export async function getImdbRating(
   if (ratingCache.has(cacheKey)) return ratingCache.get(cacheKey)!;
 
   try {
-    const params = new URLSearchParams({ apikey: OMDB_KEY, t: title, type: 'series' });
-    if (year) params.set('y', year);
-    const res = await fetch(`${OMDB_BASE}?${params.toString()}`);
-    if (!res.ok) {
-      // Includes OMDb's "Request limit reached!" 401 on the free
-      // tier's daily cap — transient, not "this show has no rating".
-      console.error(`OMDb lookup failed: ${res.status}`);
-      return undefined;
+    let data = await fetchOmdbByTitle(title, year);
+    // OMDb's `y=` filter does fuzzy title matching under the hood — a
+    // year that's off by one from what OMDb has on file (TMDB and
+    // OMDb don't always agree, e.g. pilot-vs-series-proper dating) can
+    // silently return a DIFFERENT, unrelated show that happens to
+    // share that year, rather than failing outright. Confirmed live:
+    // "The Chosen" + y=2019 returned an unrelated Brazilian thriller
+    // called "The Chosen One". Retry without the year constraint,
+    // which correctly finds the real show, whenever the year-filtered
+    // result's title doesn't actually match what was asked for.
+    if (year && data.Response === 'True' && normalizeTitle(data.Title) !== normalizeTitle(title)) {
+      data = await fetchOmdbByTitle(title, undefined);
     }
-    const data = await res.json();
     const rating =
-      data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A'
+      data.Response === 'True' &&
+      normalizeTitle(data.Title) === normalizeTitle(title) &&
+      data.imdbRating &&
+      data.imdbRating !== 'N/A'
         ? (data.imdbRating as string)
         : null;
     ratingCache.set(cacheKey, rating);

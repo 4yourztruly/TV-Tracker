@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Star } from 'lucide-react';
 import type { SearchResult } from '../types/show';
 import { searchAll } from '../api/search';
-import { getTopRatedShows, type TopRatedEntry } from '../api/topRated';
+import { getTopRatedShows, topRatedToSearchResult } from '../api/topRated';
 import { useAppStore } from '../store/store';
 import { syncToDrive } from '../store/sync';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
@@ -18,20 +18,21 @@ export function SearchScreen() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which specific result (if any) failed to open — shown inline on
+  // that row instead of the generic `error` banner above, which lives
+  // up by the search box and is easy to miss once you're scrolled down
+  // into results, making a failed tap look like it silently did
+  // nothing. (Some TMDB search results are genuinely stale/broken —
+  // e.g. an indexed show whose own detail endpoint now 404s — so this
+  // is a real, recurring case, not just theoretical.)
+  const [openErrorKey, setOpenErrorKey] = useState<string | null>(null);
 
   // Shown below the search bar when it's empty — a browse grid, not a
-  // search result. Fetched once and kept for the component's lifetime
-  // rather than re-fetched each time the search box is cleared.
-  const [topRated, setTopRated] = useState<TopRatedEntry[] | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getTopRatedShows().then((entries) => {
-      if (!cancelled) setTopRated(entries);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // search result. Fully static (title/rating/poster/id all hardcoded
+  // in the curated list) — no network call to show it or to open a
+  // tile; tapping goes straight through the normal handleOpenDetails
+  // flow, same as any other search result.
+  const topRated = getTopRatedShows();
 
   // Each row's IMDb rating reports in once its lookup settles, so the
   // whole results list can be held behind a spinner and revealed all
@@ -128,11 +129,12 @@ export function SearchScreen() {
     }
     const key = `${result.source}-${result.sourceId}`;
     setOpeningId(key);
+    setOpenErrorKey(null);
     try {
       setPreviewShow(await buildTrackedShow(result));
     } catch (err) {
       console.error('Failed to load show details:', err);
-      setError('Could not load details for that show — please try again.');
+      setOpenErrorKey(key);
     } finally {
       setOpeningId(null);
     }
@@ -163,49 +165,48 @@ export function SearchScreen() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
             Top Rated
           </h2>
-          {topRated === null ? (
-            <div className="flex items-center justify-center py-10">
-              <Spinner size={32} />
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {topRated.map((entry) => {
-                const result = entry.result;
-                const key = `${result.source}-${result.sourceId}`;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleOpenDetails(result)}
-                    className="group flex flex-col gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500 focus-visible:outline-offset-2 rounded-lg"
-                  >
-                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-inset ring-ink-800 transition-transform group-active:scale-[0.97]">
-                      {result.posterUrl ? (
-                        <img
-                          src={result.posterUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-ink-500">
-                          {result.title}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <p className="min-w-0 flex-1 truncate text-xs font-medium text-ink-200">
-                        {result.title}
-                      </p>
-                      <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-signal-500">
-                        <Star className="h-2.5 w-2.5 fill-current" />
-                        {entry.imdbRating}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="grid grid-cols-3 gap-3">
+            {topRated.map((entry) => {
+              const result = topRatedToSearchResult(entry);
+              const key = `${result.source}-${result.sourceId}`;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleOpenDetails(result)}
+                  disabled={openingId === key}
+                  className="group flex flex-col gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500 focus-visible:outline-offset-2 rounded-lg disabled:opacity-70"
+                >
+                  <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-inset ring-ink-800 transition-transform group-active:scale-[0.97]">
+                    <img
+                      src={entry.posterUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    {openingId === key && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-ink-950/60">
+                        <Spinner size={20} />
+                      </div>
+                    )}
+                    {openErrorKey === key && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-ink-950/80 px-1 text-center text-[10px] font-medium text-red-400">
+                        Couldn't load — tap to retry
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <p className="min-w-0 flex-1 truncate text-xs font-medium text-ink-200">
+                      {entry.title}
+                    </p>
+                    <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-signal-500">
+                      <Star className="h-2.5 w-2.5 fill-current" />
+                      {entry.imdbRating}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -241,7 +242,9 @@ export function SearchScreen() {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-semibold text-ink-100">
-                        {openingId === key ? 'Loading…' : result.title}
+                        {openingId === key
+                          ? 'Loading…'
+                          : `${result.title}${result.year ? ` (${result.year})` : ''}`}
                       </span>
                       {openingId !== key && (
                         <ImdbRating
@@ -253,8 +256,11 @@ export function SearchScreen() {
                       )}
                     </p>
                     <p className="text-xs text-ink-400">
-                      {result.source === 'tmdb' ? 'TV' : 'Anime'}
-                      {result.year ? ` · ${result.year}` : ''}
+                      {openErrorKey === key ? (
+                        <span className="text-red-400">Couldn't load — tap to retry</span>
+                      ) : (
+                        result.source === 'tmdb' ? 'TV' : 'Anime'
+                      )}
                     </p>
                   </div>
                   <button

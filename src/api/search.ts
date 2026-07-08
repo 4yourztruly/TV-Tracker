@@ -48,6 +48,8 @@ export interface ShowDetails {
   genres?: string[];
   ageRating?: string;
   backdropUrls?: string[];
+  startYear?: string;
+  endYear?: string;
   seasons: SeasonSummary[];
 }
 

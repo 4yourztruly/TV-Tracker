@@ -93,6 +93,14 @@ export interface TrackedShow {
    * reports one. Same undefined-vs-null convention as `imdbRating`. */
   ageRating?: string | null;
 
+  /** Year the show first/most-recently aired (e.g. "2008"), when the
+   * source API reports one. Raw facts, not pre-formatted — whether to
+   * render them as a closed "2008-2013" range or an open "2016-" one
+   * depends on `seriesStatus` too; see utils/formatYearRange. Same
+   * undefined-vs-null convention as `imdbRating`. */
+  startYear?: string | null;
+  endYear?: string | null;
+
   /** Backdrop/preview images for the show (TMDB only — Jikan has no
    * equivalent gallery), shown as a photo strip in the detail view.
    * Same undefined-vs-null-ish convention as `genres`: undefined means

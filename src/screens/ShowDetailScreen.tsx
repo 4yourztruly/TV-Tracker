@@ -9,6 +9,7 @@ import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
 import { getShowDetails, getRelatedShows } from '../api/search';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
+import { formatYearRange } from '../utils/formatYearRange';
 import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
@@ -44,6 +45,7 @@ export function ShowDetailScreen() {
   const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
   const backfillAgeRating = useAppStore((s) => s.backfillAgeRating);
   const backfillBackdrops = useAppStore((s) => s.backfillBackdrops);
+  const backfillYears = useAppStore((s) => s.backfillYears);
   const backfillRelatedShows = useAppStore((s) => s.backfillRelatedShows);
 
   // Deep-link from the Home screen's Watch History: which episode (if
@@ -136,28 +138,65 @@ export function ShowDetailScreen() {
   const [imdbCheckAttempted, setImdbCheckAttempted] = useState(false);
   const imdbReady = show == null || show.imdbRating !== undefined || imdbCheckAttempted;
 
+  // Same idea, for the genres/ageRating/backdropUrls/startYear backfill
+  // below. Without this, a legacy show whose genres/ageRating were
+  // already backfilled in an earlier session (before startYear
+  // existed) would show those instantly but have the date visibly pop
+  // in a beat later once its one-time backfill resolves — inconsistent
+  // with everything else, which either shows immediately or waits
+  // behind the spinner. Gating all of it the same way means it always
+  // appears together.
+  const [metaCheckAttempted, setMetaCheckAttempted] = useState(false);
+  const metaReady =
+    show == null ||
+    (show.genres !== undefined &&
+      show.ageRating !== undefined &&
+      show.backdropUrls !== undefined &&
+      show.startYear !== undefined) ||
+    metaCheckAttempted;
+  const contentReady = imdbReady && metaReady;
+
   // One-time backfill for a tracked show that predates `genres` or
   // `imdbRating` existing on TrackedShow. `undefined` means "never
   // checked"; both backfill actions always set a real value (even `[]`
   // / `null`) so a show with genuinely nothing to report is marked
   // "checked" and isn't re-fetched forever. Doesn't apply to preview
   // shows — those are always built fresh from the API already.
+  //
+  // genres/ageRating/backdropUrls/startYear/endYear all come from the
+  // exact same getShowDetails response — one shared fetch backfills
+  // whichever of them a legacy show is still missing, rather than each
+  // firing its own separate (and identical) request in parallel.
   useEffect(() => {
-    if (!trackedShow || trackedShow.genres !== undefined) return;
+    if (
+      !trackedShow ||
+      (trackedShow.genres !== undefined &&
+        trackedShow.ageRating !== undefined &&
+        trackedShow.backdropUrls !== undefined &&
+        trackedShow.startYear !== undefined)
+    ) {
+      return;
+    }
     let cancelled = false;
     getShowDetails(trackedShow.source, trackedShow.sourceId)
       .then((details) => {
         if (cancelled) return;
         backfillGenres(trackedShow.id, details.genres ?? []);
+        backfillAgeRating(trackedShow.id, details.ageRating ?? null);
+        backfillBackdrops(trackedShow.id, details.backdropUrls ?? []);
+        backfillYears(trackedShow.id, details.startYear ?? null, details.endYear ?? null);
         syncToDrive();
       })
       .catch((err) => {
-        console.error('Failed to backfill genres:', err);
+        console.error('Failed to backfill show metadata:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setMetaCheckAttempted(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [trackedShow, backfillGenres]);
+  }, [trackedShow, backfillGenres, backfillAgeRating, backfillBackdrops, backfillYears]);
 
   useEffect(() => {
     if (!trackedShow || trackedShow.imdbRating !== undefined) return;
@@ -177,42 +216,6 @@ export function ShowDetailScreen() {
       cancelled = true;
     };
   }, [trackedShow, backfillImdbRating]);
-
-  // Same one-time backfill, for shows tracked before `ageRating`/
-  // `backdropUrls` existed on TrackedShow.
-  useEffect(() => {
-    if (!trackedShow || trackedShow.ageRating !== undefined) return;
-    let cancelled = false;
-    getShowDetails(trackedShow.source, trackedShow.sourceId)
-      .then((details) => {
-        if (cancelled) return;
-        backfillAgeRating(trackedShow.id, details.ageRating ?? null);
-        syncToDrive();
-      })
-      .catch((err) => {
-        console.error('Failed to backfill age rating:', err);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [trackedShow, backfillAgeRating]);
-
-  useEffect(() => {
-    if (!trackedShow || trackedShow.backdropUrls !== undefined) return;
-    let cancelled = false;
-    getShowDetails(trackedShow.source, trackedShow.sourceId)
-      .then((details) => {
-        if (cancelled) return;
-        backfillBackdrops(trackedShow.id, details.backdropUrls ?? []);
-        syncToDrive();
-      })
-      .catch((err) => {
-        console.error('Failed to backfill backdrop images:', err);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [trackedShow, backfillBackdrops]);
 
   useEffect(() => {
     if (!trackedShow || trackedShow.relatedShows !== undefined) return;
@@ -268,6 +271,8 @@ export function ShowDetailScreen() {
   }
 
   if (!show) return null;
+
+  const yearRange = formatYearRange(show.startYear, show.endYear, show.seriesStatus);
 
   function handleClose() {
     setSelectedShow(null);
@@ -444,8 +449,14 @@ export function ShowDetailScreen() {
 
   function handleAddToWatchlist() {
     addShow(show!);
+    // Switch to the now-tracked show in place, same as the other
+    // preview-to-tracked actions above (commitWatchedEpisodes,
+    // handleToggleSeason) — don't close the whole sheet. Closing here
+    // used to only ever bounce back to Search, which was fine, but a
+    // preview reached via another show's Related Shows would incorrectly
+    // close all the way out to Home instead of staying on this show.
+    setSelectedShow(show!.id);
     syncToDrive();
-    handleClose();
   }
 
   function handleStatusChange(status: WatchStatus) {
@@ -492,7 +503,7 @@ export function ShowDetailScreen() {
           <h2 className="truncate text-sm font-semibold text-ink-100">{show.title}</h2>
         </div>
 
-        {!imdbReady ? (
+        {!contentReady ? (
           <div className="flex flex-1 items-center justify-center">
             <Spinner size={40} />
           </div>
@@ -559,6 +570,7 @@ export function ShowDetailScreen() {
                   {show.totalEpisodes != null
                     ? `${show.totalEpisodes} total episodes`
                     : 'Episode count unknown (still airing)'}
+                  {yearRange ? ` · ${yearRange}` : ''}
                 </p>
                 {show.episodeRuntimeMinutes != null && (
                   <p className="text-xs text-ink-400">

@@ -37,6 +37,7 @@ interface AppState {
   backfillImdbRating: (id: string, imdbRating: string | null) => void;
   backfillAgeRating: (id: string, ageRating: string | null) => void;
   backfillBackdrops: (id: string, backdropUrls: string[]) => void;
+  backfillYears: (id: string, startYear: string | null, endYear: string | null) => void;
   backfillRelatedShows: (id: string, relatedShows: SearchResult[]) => void;
   markNextEpisodeWatched: (id: string) => void;
   unwatchLastEpisode: (id: string) => void;
@@ -217,6 +218,13 @@ export const useAppStore = create<AppState>()(
       backfillBackdrops: (id, backdropUrls) =>
         set((s) => ({
           shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, backdropUrls }) : sh)),
+        })),
+
+      // Same one-time-backfill pattern, for shows tracked before
+      // `startYear`/`endYear` were cached on TrackedShow.
+      backfillYears: (id, startYear, endYear) =>
+        set((s) => ({
+          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, startYear, endYear }) : sh)),
         })),
 
       // Same one-time-backfill pattern, for shows tracked before

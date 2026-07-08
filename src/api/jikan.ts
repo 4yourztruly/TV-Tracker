@@ -1,16 +1,22 @@
 import type { SearchResult, SeasonSummary, SeriesStatus } from '../types/show';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 /**
  * Jikan — unofficial MyAnimeList API. Free, no API key required.
  * Rate limit is roughly 3 req/sec and 60/min, so batch operations
  * should be throttled (see utils/throttle.ts) rather than fired at once.
+ * Also just plain flaky — its upstream (MyAnimeList) occasionally
+ * 504s or hangs, so calls here use a shorter timeout than the other
+ * APIs to fail fast rather than leaving the UI stuck loading.
  */
 
 const JIKAN_BASE = 'https://api.jikan.moe/v4';
+const JIKAN_TIMEOUT_MS = 10000;
 
 export async function searchJikan(query: string): Promise<SearchResult[]> {
-  const res = await fetch(
-    `${JIKAN_BASE}/anime?q=${encodeURIComponent(query)}&limit=10`
+  const res = await fetchWithTimeout(
+    `${JIKAN_BASE}/anime?q=${encodeURIComponent(query)}&limit=10`,
+    JIKAN_TIMEOUT_MS
   );
   if (!res.ok) throw new Error(`Jikan search failed: ${res.status}`);
   const data = await res.json();
@@ -33,6 +39,8 @@ export interface JikanAnimeDetails {
   episodeRuntimeMinutes?: number;
   genres?: string[];
   ageRating?: string;
+  startYear?: string;
+  endYear?: string;
   seasons: SeasonSummary[]; // anime is usually modeled as a single "season 1" block
 }
 
@@ -58,7 +66,7 @@ function parseJikanAgeRating(rating: string | null | undefined): string | undefi
 async function fetchJikanStatusAndSequel(
   malId: number
 ): Promise<{ status: string | undefined; sequelId: number | null }> {
-  const res = await fetch(`${JIKAN_BASE}/anime/${malId}/full`);
+  const res = await fetchWithTimeout(`${JIKAN_BASE}/anime/${malId}/full`, JIKAN_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Jikan details fetch failed: ${res.status}`);
   const data = await res.json();
   const anime = data.data;
@@ -111,7 +119,7 @@ function parseJikanDurationMinutes(duration: string | null | undefined): number 
  * new "season" is usually its own separate MAL entry. So each tracked
  * anime is modeled as a single season containing all episodes. */
 export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDetails> {
-  const res = await fetch(`${JIKAN_BASE}/anime/${malId}/full`);
+  const res = await fetchWithTimeout(`${JIKAN_BASE}/anime/${malId}/full`, JIKAN_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Jikan details fetch failed: ${res.status}`);
   const data = await res.json();
   const anime = data.data;
@@ -136,6 +144,13 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
       ? anime.genres.map((g: any) => g.name).filter(Boolean)
       : undefined;
 
+  const startYear: string | undefined = anime.aired?.prop?.from?.year
+    ? String(anime.aired.prop.from.year)
+    : undefined;
+  const endYear: string | undefined = anime.aired?.prop?.to?.year
+    ? String(anime.aired.prop.to.year)
+    : undefined;
+
   return {
     title: anime.title,
     summary: anime.synopsis || undefined,
@@ -145,6 +160,8 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
     episodeRuntimeMinutes: parseJikanDurationMinutes(anime.duration),
     genres,
     ageRating: parseJikanAgeRating(anime.rating),
+    startYear,
+    endYear,
     seasons: [{ season: 1, episodeCount: episodeCount ?? 0 }],
   };
 }
@@ -152,7 +169,7 @@ export async function getJikanAnimeDetails(malId: number): Promise<JikanAnimeDet
 /** Fetches named episode list for an anime, paginated by Jikan in
  * blocks of 100. Used when a season is expanded in the detail view. */
 export async function getJikanEpisodes(malId: number, page = 1) {
-  const res = await fetch(`${JIKAN_BASE}/anime/${malId}/episodes?page=${page}`);
+  const res = await fetchWithTimeout(`${JIKAN_BASE}/anime/${malId}/episodes?page=${page}`, JIKAN_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Jikan episodes fetch failed: ${res.status}`);
   const data = await res.json();
   const episodes = (data.data || []).map((e: any) => ({
@@ -173,7 +190,7 @@ const RELATED_SHOWS_LIMIT = 5;
  * need a genre-name-to-id table maintained for MAL's numbering.
  * Already returned sorted by vote count (most-agreed-on first). */
 export async function getJikanRelatedShows(malId: number): Promise<SearchResult[]> {
-  const res = await fetch(`${JIKAN_BASE}/anime/${malId}/recommendations`);
+  const res = await fetchWithTimeout(`${JIKAN_BASE}/anime/${malId}/recommendations`, JIKAN_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Jikan recommendations fetch failed: ${res.status}`);
   const data = await res.json();
   return (data.data || [])
