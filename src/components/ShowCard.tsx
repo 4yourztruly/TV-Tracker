@@ -294,8 +294,10 @@ export function ShowCard({ show, onReady }: Props) {
     setIsDragging(false);
     const width = cardRef.current?.offsetWidth ?? 0;
     if (dragXRef.current > width * 0.5) {
-      unwatchLastEpisode(show.id);
-      syncToDrive();
+      // As with markNextEpisodeWatched above, the actual unwatch (and
+      // any resulting reorder in the Home screen's Watching list, since
+      // it drops out of "most recently watched") is deferred to the
+      // "Unwatched" overlay's onAnimationEnd, not applied here.
       setUnwipeKey((k) => k + 1);
       setIsUnwiping(true);
     }
@@ -350,7 +352,11 @@ export function ShowCard({ show, onReady }: Props) {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-red-600 text-sm font-semibold text-white"
           style={{ animation: 'card-wipe 0.5s ease' }}
-          onAnimationEnd={() => setIsUnwiping(false)}
+          onAnimationEnd={() => {
+            setIsUnwiping(false);
+            unwatchLastEpisode(show.id);
+            syncToDrive();
+          }}
         >
           Unwatched
         </span>

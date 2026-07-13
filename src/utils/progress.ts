@@ -63,6 +63,21 @@ export function getLastWatchedEpisode(show: TrackedShow): EpisodeInfo | null {
   return null;
 }
 
+/** Timestamp of the most recent Watch History entry (i.e. the last time
+ * an episode was marked watched via the Home screen's quick-watch
+ * action), or null if there isn't one. Detail-screen toggles don't
+ * append to Watch History, so they don't count here either — this is
+ * specifically "most recently watched via Home." Used to order the
+ * Home screen's Watching section by recency; unwatching removes the
+ * corresponding Watch History entry (see unwatchLastEpisode), so it
+ * naturally falls back to whatever's next most recent instead of still
+ * counting as "just watched." */
+export function getLastWatchedAt(show: TrackedShow): number | null {
+  const history = show.watchHistory;
+  if (!history || history.length === 0) return null;
+  return Math.max(...history.map((h) => h.watchedAt));
+}
+
 /** Episodes remaining AFTER the "next" episode shown on the home
  * screen (i.e. not counting that one). Returns null if the total
  * episode count is unknown. */

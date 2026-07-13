@@ -5,7 +5,7 @@ import { ShowCard } from '../components/ShowCard';
 import { ShowPoster } from '../components/ShowPoster';
 import { WatchHistoryItem } from '../components/WatchHistoryItem';
 import { Spinner } from '../components/Spinner';
-import { isShowUpToDate } from '../utils/progress';
+import { isShowUpToDate, getLastWatchedAt } from '../utils/progress';
 
 const WATCH_HISTORY_PAGE_SIZE = 10;
 // How close to the very bottom of the scroll container (in px) before
@@ -38,11 +38,14 @@ export function HomeScreen() {
 
   const upToDate = shows.filter(isShowUpToDate);
   // Most-recently-watched-episode first, so watching another episode of
-  // a lower show bumps it back to the top — same recency ordering as
-  // Watch History below, just collapsed to one row per show.
+  // a lower show bumps it back to the top — driven by the same Watch
+  // History entries as the section below, just collapsed to one row per
+  // show. Unwatching removes its Watch History entry (see
+  // unwatchLastEpisode), so it naturally drops back out of "just
+  // watched" instead of still being prioritized.
   const watching = shows
     .filter((s) => s.status === 'watching' && !isShowUpToDate(s))
-    .sort((a, b) => (b.lastWatchedAt ?? b.updatedAt) - (a.lastWatchedAt ?? a.updatedAt));
+    .sort((a, b) => (getLastWatchedAt(b) ?? 0) - (getLastWatchedAt(a) ?? 0));
   const unwatched = shows.filter((s) => s.status === 'unwatched');
   const completed = shows.filter((s) => s.status === 'completed' && !isShowUpToDate(s));
 

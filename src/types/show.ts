@@ -126,13 +126,6 @@ export interface TrackedShow {
   notes?: string;
   addedAt: number;
   updatedAt: number;
-
-  /** Timestamp of the most recent episode-watching action (marking an
-   * episode/season watched, or a rewatch) — NOT bumped by unwatching or
-   * by unrelated metadata backfills, unlike `updatedAt`. Powers the Home
-   * screen's Watching section, which orders shows by whichever was
-   * watched most recently. */
-  lastWatchedAt?: number;
 }
 
 /** Lightweight shape returned by search, before a show is added to the list. */
