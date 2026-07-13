@@ -78,18 +78,31 @@ export function getLastWatchedAt(show: TrackedShow): number | null {
   return Math.max(...history.map((h) => h.watchedAt));
 }
 
+/** Total episodes across all *known* seasons — the same enumerable list
+ * `getNextEpisode`/`allEpisodesInOrder` walk. Deliberately not
+ * `show.totalEpisodes`: that's a separately-sourced API aggregate (TMDB's
+ * own `number_of_episodes`) that can drift out of sync with the actual
+ * per-season episode lists — e.g. a newly announced season TMDB lists
+ * with 0 known episodes yet shouldn't block "up to date" just because
+ * the aggregate hasn't caught up (or has already counted it). */
+export function getTotalKnownEpisodes(show: TrackedShow): number {
+  return show.seasons.reduce((sum, s) => sum + s.episodeCount, 0);
+}
+
 /** Episodes remaining AFTER the "next" episode shown on the home
- * screen (i.e. not counting that one). Returns null if the total
- * episode count is unknown. */
+ * screen (i.e. not counting that one). Returns null if there are no
+ * known episodes at all yet. */
 export function getEpisodesLeft(show: TrackedShow): number | null {
-  if (show.totalEpisodes == null) return null;
+  const total = getTotalKnownEpisodes(show);
+  if (total === 0) return null;
   const watched = getWatchedEpisodeCount(show);
   const next = getNextEpisode(show);
-  return Math.max(show.totalEpisodes - watched - (next ? 1 : 0), 0);
+  return Math.max(total - watched - (next ? 1 : 0), 0);
 }
 
 export function hasWatchedAllKnownEpisodes(show: TrackedShow): boolean {
-  return show.totalEpisodes != null && getWatchedEpisodeCount(show) >= show.totalEpisodes;
+  const total = getTotalKnownEpisodes(show);
+  return total > 0 && getWatchedEpisodeCount(show) >= total;
 }
 
 export function isShowUpToDate(show: TrackedShow): boolean {
@@ -99,15 +112,20 @@ export function isShowUpToDate(show: TrackedShow): boolean {
   );
 }
 
-/** Suggests a status from watched progress alone. The store keeps
- * `status` as an explicit field (so users can manually override, e.g.
- * mark complete despite a stale episode count from the API), but calls
- * this to auto-advance status whenever watched episodes change. */
+/** Re-derives status from watched progress, but ONLY ever forces the
+ * *completed* classification on or off — "Watching" vs. "Watchlist" is
+ * otherwise left exactly as it was (whatever the user last set via the
+ * status picker, or the 'unwatched' default a show starts with), never
+ * auto-promoted just because some episodes got checked off. A show
+ * only ever lands in Watching because the user put it there themselves;
+ * Completed/Up to date is the one classification the app decides on
+ * its own, the moment every known episode is watched. */
 export function deriveStatus(show: TrackedShow): WatchStatus {
-  const watched = getWatchedEpisodeCount(show);
-  if (watched === 0) return 'unwatched';
-  if (hasWatchedAllKnownEpisodes(show)) return isShowUpToDate(show) ? 'watching' : 'completed';
-  return 'watching';
+  if (hasWatchedAllKnownEpisodes(show)) return 'completed';
+  // No longer fully watched (e.g. an episode got unwatched) — falls
+  // back to 'watching' rather than staying 'completed', since there's
+  // no prior non-completed status to restore.
+  return show.status === 'completed' ? 'watching' : show.status;
 }
 
 /** Sets an episode's watch count directly. A count of 0 (or less)
@@ -235,12 +253,14 @@ export function getPosterProgress(show: TrackedShow): PosterProgress {
   const watched = getWatchedEpisodeCount(show);
   if (watched === 0) return { fraction: 0, color: 'none' };
 
-  if (show.totalEpisodes && show.totalEpisodes > 0) {
-    return { fraction: Math.min(watched / show.totalEpisodes, 1), color: 'yellow' };
+  const totalKnown = getTotalKnownEpisodes(show);
+  if (totalKnown > 0) {
+    return { fraction: Math.min(watched / totalKnown, 1), color: 'yellow' };
   }
-  // Total episode count unknown (common for airing anime) — still show
-  // a sliver so "started but total unknown" reads differently from
-  // "nothing watched," without implying a fraction we don't actually know.
+  // No known episodes yet (common for airing anime right after it's
+  // announced) — still show a sliver so "started but total unknown"
+  // reads differently from "nothing watched," without implying a
+  // fraction we don't actually know.
   return { fraction: 0.08, color: 'yellow' };
 }
 

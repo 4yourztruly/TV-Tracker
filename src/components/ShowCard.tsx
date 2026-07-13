@@ -35,6 +35,14 @@ export function ShowCard({ show, onReady }: Props) {
   const upToDate = isShowUpToDate(show);
   const finishedLabel = upToDate ? "Up to date" : "Completed";
   const caughtUpLabel = upToDate ? "Up to date" : "Caught up";
+  // Whether checking off `next` clears every known episode — same
+  // purple used for the poster progress bar once a show is fully
+  // watched, whether that means truly finished (ended series) or just
+  // caught up (ongoing series). `left` is null when the total episode
+  // count isn't known yet, so that case can't be detected as "last."
+  const nextEpisodeClearsKnownEpisodes = left === 0;
+  const nextEpisodeCompletionLabel =
+    show.seriesStatus === "ongoing" ? "Up to date" : "Completed";
   const nextEpisodeInfo = next
     ? show.seasons
         .find((season) => season.season === next.season)
@@ -335,15 +343,15 @@ export function ShowCard({ show, onReady }: Props) {
         <span
           key={wipeKey}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-ok-500 text-sm font-semibold text-white"
-          style={{ animation: 'card-wipe 0.5s ease' }}
+          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-semibold text-white ${nextEpisodeClearsKnownEpisodes ? "bg-purple-500" : "bg-ok-500"}`}
+          style={{ animation: 'card-wipe 0.8s ease' }}
           onAnimationEnd={() => {
             setIsWiping(false);
             markNextEpisodeWatched(show.id);
             syncToDrive();
           }}
         >
-          Watched
+          {nextEpisodeClearsKnownEpisodes ? nextEpisodeCompletionLabel : "Watched"}
         </span>
       )}
       {isUnwiping && (
@@ -351,7 +359,7 @@ export function ShowCard({ show, onReady }: Props) {
           key={unwipeKey}
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-red-600 text-sm font-semibold text-white"
-          style={{ animation: 'card-wipe 0.5s ease' }}
+          style={{ animation: 'card-wipe 0.8s ease' }}
           onAnimationEnd={() => {
             setIsUnwiping(false);
             unwatchLastEpisode(show.id);

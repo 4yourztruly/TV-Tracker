@@ -20,13 +20,18 @@ import {
   incrementEpisodeWatchCount,
   isEpisodeWatched,
   getEpisodeWatchCount,
+  deriveStatus,
+  hasWatchedAllKnownEpisodes,
+  isShowUpToDate,
 } from '../utils/progress';
 import type { SearchResult, WatchStatus } from '../types/show';
 
+// No 'completed' option here — Completed/Up to date is decided by the
+// app automatically once every known episode is watched (see
+// deriveStatus), never something the user picks directly.
 const STATUS_OPTIONS: { value: WatchStatus; label: string }[] = [
   { value: 'unwatched', label: 'Watchlist' },
   { value: 'watching', label: 'Watching' },
-  { value: 'completed', label: 'Completed' },
 ];
 
 export function ShowDetailScreen() {
@@ -359,7 +364,12 @@ export function ShowDetailScreen() {
    * tracked branch that all three episode-watch actions share. */
   function commitWatchedEpisodes(watchedEpisodes: Record<string, number>) {
     if (isPreview) {
-      const newShow = { ...show!, status: 'watching' as const, watchedEpisodes };
+      // Marking an episode watched before the show is even added reads
+      // as "I'm watching this," so it lands in Watching by default —
+      // unless this happens to finish the show outright, in which case
+      // deriveStatus bumps it straight to Completed/Up to date instead.
+      const watchedShow = { ...show!, status: 'watching' as const, watchedEpisodes };
+      const newShow = { ...watchedShow, status: deriveStatus(watchedShow) };
       addShow(newShow);
       setSelectedShow(newShow.id);
     }
@@ -441,11 +451,14 @@ export function ShowDetailScreen() {
 
   function handleToggleSeason(season: number) {
     if (isPreview) {
-      const newShow = {
+      // Same reasoning as commitWatchedEpisodes above — toggling a whole
+      // season before adding defaults it to Watching.
+      const watchedShow = {
         ...show!,
         status: 'watching' as const,
         watchedEpisodes: toggleSeasonWatched(show!, season),
       };
+      const newShow = { ...watchedShow, status: deriveStatus(watchedShow) };
       addShow(newShow);
       setSelectedShow(newShow.id);
       syncToDrive();
@@ -557,27 +570,34 @@ export function ShowDetailScreen() {
                   >
                     Add to Watchlist
                   </button>
+                ) : hasWatchedAllKnownEpisodes(show) ? (
+                  // Fully watched — Completed/Up to date is decided by
+                  // the app, not the user, so show it as a plain badge
+                  // instead of the Watchlist/Watching picker. Only once
+                  // an episode becomes unwatched again does the picker
+                  // come back.
+                  <span
+                    className={`w-fit rounded-md px-2 py-1 text-xs font-semibold text-ink-950 ${
+                      isShowUpToDate(show) ? 'bg-ok-500' : 'bg-purple-500'
+                    }`}
+                  >
+                    {isShowUpToDate(show) ? 'Up to date' : 'Completed'}
+                  </span>
                 ) : (
                   <div className="flex gap-1.5">
-                    {STATUS_OPTIONS.map((opt) => {
-                      const label =
-                        opt.value === 'completed' && show.seriesStatus === 'ongoing'
-                          ? 'Up to date'
-                          : opt.label;
-                      return (
-                        <button
-                          key={opt.value}
-                          onClick={() => handleStatusChange(opt.value)}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                            show.status === opt.value
-                              ? 'bg-signal-500 text-ink-950'
-                              : 'border border-ink-700 text-ink-300'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
+                    {STATUS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => handleStatusChange(opt.value)}
+                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                          show.status === opt.value
+                            ? 'bg-signal-500 text-ink-950'
+                            : 'border border-ink-700 text-ink-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 )}
                 <p className="text-xs text-ink-400">

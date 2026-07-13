@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import type { EpisodeInfo, SearchResult, TrackedShow } from '../types/show';
 import { CURRENT_EPISODES_VERSION } from '../types/show';
-import { deriveStatus, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
+import { deriveStatus, episodeKey, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
 export type Tab = 'home' | 'search' | 'settings';
@@ -113,9 +113,23 @@ function touch(show: TrackedShow): TrackedShow {
   return { ...show, updatedAt: Date.now() };
 }
 
+/** Drops any Watch History entries for episodes that are no longer
+ * watched. Covers every way an episode can get unwatched — not just
+ * the Home screen's own swipe-to-unwatch (which already removes its
+ * entry directly), but also unchecking it from the detail screen's
+ * episode/season toggles, which otherwise left a stale "watched" log
+ * entry behind for an episode that isn't watched anymore. */
+function pruneWatchHistory(
+  show: TrackedShow,
+  watchedEpisodes: Record<string, number>
+): TrackedShow['watchHistory'] {
+  if (!show.watchHistory) return show.watchHistory;
+  return show.watchHistory.filter((h) => (watchedEpisodes[episodeKey(h.season, h.episode)] ?? 0) > 0);
+}
+
 /** Applies a watched-episode change and re-derives status from it. */
 function applyWatchedChange(show: TrackedShow, watchedEpisodes: Record<string, number>): TrackedShow {
-  const updated = touch({ ...show, watchedEpisodes });
+  const updated = touch({ ...show, watchedEpisodes, watchHistory: pruneWatchHistory(show, watchedEpisodes) });
   return { ...updated, status: deriveStatus(updated) };
 }
 
