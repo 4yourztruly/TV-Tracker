@@ -134,17 +134,22 @@ export default function App() {
       <div className="flex h-dvh w-full max-w-[480px] flex-col md:border-x md:border-ink-800">
         <Header />
         <main className="min-h-0 flex-1 overflow-y-auto">
-          {!hasHydrated ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner size={40} />
-            </div>
-          ) : (
-            <>
-              {activeTab === 'home' && <HomeScreen />}
-              {activeTab === 'search' && <SearchScreen />}
-              {activeTab === 'settings' && <SettingsScreen />}
-            </>
-          )}
+          {/* Only Home depends on the hydrated `shows` list, so it's the
+              only tab that needs to wait for it — Search hits live APIs
+              regardless, and Settings' own stats/toggles read fine off
+              whatever's in the store the instant it renders. Gating the
+              whole tab bar on hydration made Search/Settings show a
+              pointless spinner on every launch. */}
+          {activeTab === 'home' &&
+            (hasHydrated ? (
+              <HomeScreen />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <Spinner size={40} />
+              </div>
+            ))}
+          {activeTab === 'search' && <SearchScreen />}
+          {activeTab === 'settings' && <SettingsScreen />}
         </main>
         <TabBar />
         {hasHydrated && (selectedShowId || previewShow) && <ShowDetailScreen />}

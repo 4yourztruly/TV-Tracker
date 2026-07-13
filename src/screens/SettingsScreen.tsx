@@ -19,6 +19,7 @@ export function SettingsScreen() {
   const shows = useAppStore((s) => s.shows);
   const replaceAllShows = useAppStore((s) => s.replaceAllShows);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
+  const episodesWatchedAtLastSync = useAppStore((s) => s.episodesWatchedAtLastSync);
   const setPendingSyncAction = useAppStore((s) => s.setPendingSyncAction);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -141,9 +142,15 @@ export function SettingsScreen() {
           </button>
         )}
         {lastSyncedAt && (
-          <p className="text-xs text-ink-400">
-            Last synced: {new Date(lastSyncedAt).toLocaleString()}
-          </p>
+          <>
+            <p className="text-xs text-ink-400">
+              Last synced: {new Date(lastSyncedAt).toLocaleString()}
+            </p>
+            <p className="text-xs text-ink-400">
+              {Math.max(stats.totalEpisodesWatched - (episodesWatchedAtLastSync ?? 0), 0)} episode
+              {Math.max(stats.totalEpisodesWatched - (episodesWatchedAtLastSync ?? 0), 0) === 1 ? '' : 's'} watched since last resync
+            </p>
+          </>
         )}
         {syncStatus === 'error' && (
           <p className="text-xs text-red-400">Something went wrong talking to Drive. Try again.</p>

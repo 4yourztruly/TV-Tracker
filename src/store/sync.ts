@@ -1,8 +1,20 @@
 import { useAppStore } from './store';
 import { findOrCreateFile, readTrackerData, saveTrackerData } from '../api/drive';
+import { computeWatchStats } from '../utils/stats';
 import type { TrackerData } from '../types/show';
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Stamps both "last synced at" and the episodes-watched snapshot used
+ * to derive "episodes watched since last resync" in Settings. Always
+ * called together so the two never drift out of step. Re-reads state
+ * fresh rather than trusting a caller's possibly-stale `store` snapshot,
+ * since this runs after mutations like `replaceAllShows`. */
+function markSynced() {
+  const fresh = useAppStore.getState();
+  fresh.setLastSyncedAt(Date.now());
+  fresh.setEpisodesWatchedAtLastSync(computeWatchStats(fresh.shows).totalEpisodesWatched);
+}
 
 /** Loads tracker data from Drive on sign-in and hydrates the store. Call
  * this once right after a successful sign-in. */
@@ -31,7 +43,7 @@ export async function loadFromDrive() {
       syncToDrive();
     }
 
-    store.setLastSyncedAt(Date.now());
+    markSynced();
     store.setSyncStatus('idle');
   } catch (err) {
     console.error('Failed to load from Drive:', err);
@@ -55,7 +67,7 @@ export async function saveToDriveNow() {
     }
     const data: TrackerData = { version: 1, shows: store.shows };
     await saveTrackerData(fileId, data);
-    store.setLastSyncedAt(Date.now());
+    markSynced();
     store.setSyncStatus('idle');
   } catch (err) {
     console.error('Failed to save to Drive:', err);
@@ -75,7 +87,7 @@ export function syncToDrive() {
     try {
       const data: TrackerData = { version: 1, shows: store.shows };
       await saveTrackerData(store.driveFileId, data);
-      store.setLastSyncedAt(Date.now());
+      markSynced();
       store.setSyncStatus('idle');
     } catch (err) {
       console.error('Failed to sync to Drive:', err);

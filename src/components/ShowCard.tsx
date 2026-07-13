@@ -43,6 +43,19 @@ export function ShowCard({ show, onReady }: Props) {
   const nextEpisodeClearsKnownEpisodes = left === 0;
   const nextEpisodeCompletionLabel =
     show.seriesStatus === "ongoing" ? "Up to date" : "Completed";
+  // Whether checking off `next` is that season's last episode — using
+  // the season summary's `episodeCount` rather than the (lazily
+  // loaded) per-episode list, so this works immediately and for anime
+  // too, not just TMDB shows with cached episode metadata. Excludes the
+  // case where it also clears every known episode: that's a bigger
+  // moment with its own purple/green "Completed"/"Up to date" wipe
+  // already, so this "Season completed" wipe would just be redundant.
+  const nextSeasonInfo = next ? show.seasons.find((s) => s.season === next.season) : null;
+  const nextEpisodeIsSeasonFinale =
+    !!next &&
+    !!nextSeasonInfo &&
+    next.episode === nextSeasonInfo.episodeCount &&
+    !nextEpisodeClearsKnownEpisodes;
   const nextEpisodeInfo = next
     ? show.seasons
         .find((season) => season.season === next.season)
@@ -343,7 +356,13 @@ export function ShowCard({ show, onReady }: Props) {
         <span
           key={wipeKey}
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-semibold text-white ${nextEpisodeClearsKnownEpisodes ? "bg-purple-500" : "bg-ok-500"}`}
+          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-semibold ${
+            nextEpisodeClearsKnownEpisodes
+              ? "bg-purple-500 text-white"
+              : nextEpisodeIsSeasonFinale
+                ? "bg-warn-500 text-ink-950"
+                : "bg-ok-500 text-white"
+          }`}
           style={{ animation: 'card-wipe 0.8s ease' }}
           onAnimationEnd={() => {
             setIsWiping(false);
@@ -351,7 +370,11 @@ export function ShowCard({ show, onReady }: Props) {
             syncToDrive();
           }}
         >
-          {nextEpisodeClearsKnownEpisodes ? nextEpisodeCompletionLabel : "Watched"}
+          {nextEpisodeClearsKnownEpisodes
+            ? nextEpisodeCompletionLabel
+            : nextEpisodeIsSeasonFinale
+              ? `Season ${next?.season} completed`
+              : "Watched"}
         </span>
       )}
       {isUnwiping && (

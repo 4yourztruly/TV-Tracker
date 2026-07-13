@@ -75,6 +75,12 @@ interface AppState {
   setDriveFileId: (id: string | null) => void;
   lastSyncedAt: number | null;
   setLastSyncedAt: (ts: number | null) => void;
+  /** Snapshot of `computeWatchStats(shows).totalEpisodesWatched` taken
+   * at the moment of the last successful Drive sync (save, load, or
+   * auto-sync). Lets Settings show "N episodes watched since last
+   * resync" as a simple diff against the current total. */
+  episodesWatchedAtLastSync: number | null;
+  setEpisodesWatchedAtLastSync: (count: number | null) => void;
   syncStatus: SyncStatus;
   setSyncStatus: (status: SyncStatus) => void;
 
@@ -329,6 +335,8 @@ export const useAppStore = create<AppState>()(
       setDriveFileId: (id) => set({ driveFileId: id }),
       lastSyncedAt: null,
       setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
+      episodesWatchedAtLastSync: null,
+      setEpisodesWatchedAtLastSync: (count) => set({ episodesWatchedAtLastSync: count }),
       syncStatus: 'idle',
       setSyncStatus: (status) => set({ syncStatus: status }),
 
@@ -354,6 +362,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         shows: state.shows,
         lastSyncedAt: state.lastSyncedAt,
+        episodesWatchedAtLastSync: state.episodesWatchedAtLastSync,
         homeViewMode: state.homeViewMode,
         onlyShowWatching: state.onlyShowWatching,
         showWatchHistory: state.showWatchHistory,
