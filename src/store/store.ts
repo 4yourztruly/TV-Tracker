@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import type { EpisodeInfo, SearchResult, TrackedShow } from '../types/show';
 import { CURRENT_EPISODES_VERSION } from '../types/show';
-import { deriveStatus, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
+import { deriveStatus, getNextEpisode, getLastWatchedEpisode, getTotalWatchInstances, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
 export type Tab = 'home' | 'search' | 'settings';
@@ -113,10 +113,21 @@ function touch(show: TrackedShow): TrackedShow {
   return { ...show, updatedAt: Date.now() };
 }
 
-/** Applies a watched-episode change and re-derives status from it. */
+/** Applies a watched-episode change and re-derives status from it. Also
+ * bumps `lastWatchedAt` — but only when the change actually adds watch
+ * progress (marking an episode/season watched, or a rewatch), not when
+ * it removes some (unwatching) — so the Home screen's "most recently
+ * watched" ordering doesn't jump a show to the top just because the
+ * user undid a mistaken tap. */
 function applyWatchedChange(show: TrackedShow, watchedEpisodes: Record<string, number>): TrackedShow {
+  const gainedProgress =
+    getTotalWatchInstances({ ...show, watchedEpisodes }) > getTotalWatchInstances(show);
   const updated = touch({ ...show, watchedEpisodes });
-  return { ...updated, status: deriveStatus(updated) };
+  return {
+    ...updated,
+    status: deriveStatus(updated),
+    lastWatchedAt: gainedProgress ? updated.updatedAt : updated.lastWatchedAt,
+  };
 }
 
 export const useAppStore = create<AppState>()(

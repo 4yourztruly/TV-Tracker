@@ -199,8 +199,12 @@ export function ShowCard({ show, onReady }: Props) {
   function handleCheck(e: React.MouseEvent) {
     e.stopPropagation(); // don't also open the detail view
     if (isWiping || isUnwiping) return; // ignore taps until the current wipe finishes
-    markNextEpisodeWatched(show.id);
-    syncToDrive();
+    // The actual watched-state change (and any resulting move/removal
+    // from the Home screen's Watching list) is deferred to the wipe
+    // overlay's onAnimationEnd below, not applied here — otherwise the
+    // list re-sorts/re-sections itself mid-animation and can unmount
+    // this card (e.g. finishing a show's last episode moves it out of
+    // Watching) before the "Watched" wipe has had a chance to play.
     setWipeKey((k) => k + 1);
     setIsWiping(true);
   }
@@ -331,7 +335,11 @@ export function ShowCard({ show, onReady }: Props) {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-ok-500 text-sm font-semibold text-white"
           style={{ animation: 'card-wipe 0.5s ease' }}
-          onAnimationEnd={() => setIsWiping(false)}
+          onAnimationEnd={() => {
+            setIsWiping(false);
+            markNextEpisodeWatched(show.id);
+            syncToDrive();
+          }}
         >
           Watched
         </span>

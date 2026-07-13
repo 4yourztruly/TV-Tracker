@@ -37,7 +37,12 @@ export function HomeScreen() {
   const visibleWatchHistory = watchHistory.slice(0, visibleHistoryCount);
 
   const upToDate = shows.filter(isShowUpToDate);
-  const watching = shows.filter((s) => s.status === 'watching' && !isShowUpToDate(s));
+  // Most-recently-watched-episode first, so watching another episode of
+  // a lower show bumps it back to the top — same recency ordering as
+  // Watch History below, just collapsed to one row per show.
+  const watching = shows
+    .filter((s) => s.status === 'watching' && !isShowUpToDate(s))
+    .sort((a, b) => (b.lastWatchedAt ?? b.updatedAt) - (a.lastWatchedAt ?? a.updatedAt));
   const unwatched = shows.filter((s) => s.status === 'unwatched');
   const completed = shows.filter((s) => s.status === 'completed' && !isShowUpToDate(s));
 
