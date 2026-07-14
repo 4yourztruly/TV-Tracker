@@ -77,8 +77,8 @@ interface AppState {
   setLastSyncedAt: (ts: number | null) => void;
   /** Snapshot of `computeWatchStats(shows).totalEpisodesWatched` taken
    * at the moment of the last successful Drive sync (save, load, or
-   * auto-sync). Lets Settings show "N episodes watched since last
-   * resync" as a simple diff against the current total. */
+   * auto-sync). Lets Settings show a signed "+N watched" / "-N
+   * unwatched since last sync" diff against the current total. */
   episodesWatchedAtLastSync: number | null;
   setEpisodesWatchedAtLastSync: (count: number | null) => void;
   syncStatus: SyncStatus;

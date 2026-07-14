@@ -28,6 +28,12 @@ export function SettingsScreen() {
 
   const stats = computeWatchStats(shows);
   const busy = syncStatus === 'syncing';
+  // Signed diff against the snapshot taken at the last sync — positive
+  // when more episodes are watched now (episodes checked off since
+  // then), negative when fewer are (episodes unwatched since then).
+  // Unlike a clamped-to-zero count, this surfaces unwatch activity
+  // instead of silently hiding it as "0 since last sync".
+  const episodesSinceSync = stats.totalEpisodesWatched - (episodesWatchedAtLastSync ?? 0);
 
   // Signed in before (lastSyncedAt is a persisted timestamp, not a
   // credential) → let Google reuse that prior consent instead of
@@ -147,8 +153,11 @@ export function SettingsScreen() {
               Last synced: {new Date(lastSyncedAt).toLocaleString()}
             </p>
             <p className="text-xs text-ink-400">
-              {Math.max(stats.totalEpisodesWatched - (episodesWatchedAtLastSync ?? 0), 0)} episode
-              {Math.max(stats.totalEpisodesWatched - (episodesWatchedAtLastSync ?? 0), 0) === 1 ? '' : 's'} watched since last resync
+              {episodesSinceSync === 0
+                ? 'No episode changes since last sync'
+                : `${episodesSinceSync > 0 ? '+' : '-'}${Math.abs(episodesSinceSync)} episode${
+                    Math.abs(episodesSinceSync) === 1 ? '' : 's'
+                  } ${episodesSinceSync > 0 ? 'watched' : 'unwatched'} since last sync`}
             </p>
           </>
         )}

@@ -50,17 +50,19 @@ export function getNextEpisode(show: TrackedShow): EpisodeInfo | null {
   return next ?? null;
 }
 
-/** The most recently watched episode in sequential order, or null if
- * nothing has been watched yet. Used to undo the home screen's "mark
- * next episode watched" quick action via a swipe gesture. */
+/** The episode from the most recent Watch History entry — i.e.
+ * whatever markNextEpisodeWatched most recently marked via the Home
+ * screen's quick-watch action — or null if there isn't one. Used to
+ * undo that action via the home screen's swipe-to-unwatch gesture.
+ * Deliberately watch-history-based rather than "sequentially last
+ * watched episode overall": an episode marked out of order from the
+ * detail screen (e.g. "just this one" while earlier episodes are still
+ * unwatched) would otherwise get silently unwatched by a swipe meant to
+ * undo a completely different, more recent home-screen action. */
 export function getLastWatchedEpisode(show: TrackedShow): EpisodeInfo | null {
-  const order = allEpisodesInOrder(show);
-  for (let i = order.length - 1; i >= 0; i--) {
-    if (isEpisodeWatched(show, order[i].season, order[i].episode)) {
-      return order[i];
-    }
-  }
-  return null;
+  const history = show.watchHistory;
+  if (!history || history.length === 0) return null;
+  return history.reduce((latest, h) => (h.watchedAt > latest.watchedAt ? h : latest));
 }
 
 /** Timestamp of the most recent Watch History entry (i.e. the last time
