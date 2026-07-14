@@ -9,7 +9,6 @@ import {
   isShowUpToDate,
 } from "../utils/progress";
 import { useAppStore } from "../store/store";
-import { syncToDrive } from "../store/sync";
 import { getSeasonEpisodes, getShowDetails } from "../api/search";
 
 interface Props {
@@ -171,7 +170,6 @@ export function ShowCard({ show, onReady }: Props) {
         // catch up a show whose endYear wasn't known yet (e.g. it was
         // still airing when originally added) at the same time.
         backfillYears(show.id, details.startYear ?? show.startYear ?? null, details.endYear ?? null);
-        syncToDrive();
       })
       .catch((err) => {
         console.error("Failed to refresh series status:", err);
@@ -195,7 +193,6 @@ export function ShowCard({ show, onReady }: Props) {
       .then((details) => {
         if (cancelled) return;
         backfillGenres(show.id, details.genres ?? []);
-        syncToDrive();
       })
       .catch((err) => {
         console.error("Failed to backfill genres:", err);
@@ -367,7 +364,6 @@ export function ShowCard({ show, onReady }: Props) {
           onAnimationEnd={() => {
             setIsWiping(false);
             markNextEpisodeWatched(show.id);
-            syncToDrive();
           }}
         >
           {nextEpisodeClearsKnownEpisodes
@@ -386,7 +382,6 @@ export function ShowCard({ show, onReady }: Props) {
           onAnimationEnd={() => {
             setIsUnwiping(false);
             unwatchLastEpisode(show.id);
-            syncToDrive();
           }}
         >
           Unwatched

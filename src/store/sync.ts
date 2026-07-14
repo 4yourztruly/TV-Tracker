@@ -75,10 +75,12 @@ export async function saveToDriveNow() {
   }
 }
 
-/** Debounced push of current store state to Drive. Call this after any
- * mutating action (add show, mark watched, edit progress, etc). Multiple
- * rapid calls collapse into a single write ~1s after the last one. */
-export function syncToDrive() {
+/** Debounced push of current store state to Drive. Only called from
+ * `loadFromDrive` above, to push a freshly-loaded/migrated snapshot back
+ * up as part of that one load action — not a general-purpose auto-save.
+ * Everyday edits are never pushed automatically; the user has to hit
+ * "Save to Drive" in Settings. */
+function syncToDrive() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
     const store = useAppStore.getState();

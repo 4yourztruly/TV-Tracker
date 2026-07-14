@@ -3,7 +3,7 @@ import { useAppStore } from '../store/store';
 import { requestSignIn, signOut } from '../api/auth';
 import { exportTrackerData, importTrackerData } from '../utils/exportImport';
 import { computeWatchStats, formatWatchTimeAs, WATCH_TIME_UNITS, type WatchTimeUnit } from '../utils/stats';
-import { syncToDrive, loadFromDrive, saveToDriveNow } from '../store/sync';
+import { loadFromDrive, saveToDriveNow } from '../store/sync';
 import { Toggle } from '../components/Toggle';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { TrackerData } from '../types/show';
@@ -94,7 +94,6 @@ export function SettingsScreen() {
     try {
       const data = await importTrackerData(file);
       replaceAllShows(data.shows);
-      syncToDrive();
       setMessage(`Imported ${data.shows.length} show(s).`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Import failed.');

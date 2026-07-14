@@ -4,7 +4,6 @@ import type { SearchResult } from '../types/show';
 import { searchAll } from '../api/search';
 import { getTopRatedShows, topRatedToSearchResult } from '../api/topRated';
 import { useAppStore } from '../store/store';
-import { syncToDrive } from '../store/sync';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
 import { ImdbRating } from '../components/ImdbRating';
 import { Spinner } from '../components/Spinner';
@@ -107,7 +106,6 @@ export function SearchScreen() {
     setAddingId(key);
     try {
       addShow(await buildTrackedShow(result));
-      syncToDrive();
     } catch (err) {
       console.error('Failed to add show:', err);
       setError('Could not add that show — please try again.');

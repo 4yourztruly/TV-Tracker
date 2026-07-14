@@ -11,7 +11,6 @@ import { toFullscreenPosterUrl } from '../api/tmdb';
 import { getShowDetails, getRelatedShows } from '../api/search';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
 import { formatYearRange } from '../utils/formatYearRange';
-import { syncToDrive } from '../store/sync';
 import {
   toggleEpisodeWatched,
   toggleSeasonWatched,
@@ -198,7 +197,6 @@ export function ShowDetailScreen() {
         backfillAgeRating(trackedShow.id, details.ageRating ?? null);
         backfillBackdrops(trackedShow.id, details.backdropUrls ?? []);
         backfillYears(trackedShow.id, details.startYear ?? null, details.endYear ?? null);
-        syncToDrive();
       })
       .catch((err) => {
         console.error('Failed to backfill show metadata:', err);
@@ -221,7 +219,6 @@ export function ShowDetailScreen() {
       // unset so it's retried next time this show is opened.
       if (rating !== undefined) {
         backfillImdbRating(trackedShow.id, rating);
-        syncToDrive();
       }
       setImdbCheckAttempted(true);
     });
@@ -243,7 +240,6 @@ export function ShowDetailScreen() {
       .then((related) => {
         if (cancelled) return;
         backfillRelatedShows(trackedShow.id, related);
-        syncToDrive();
       })
       .catch((err) => {
         console.error('Failed to fetch related shows:', err);
@@ -373,7 +369,6 @@ export function ShowDetailScreen() {
       addShow(newShow);
       setSelectedShow(newShow.id);
     }
-    syncToDrive();
   }
 
   /** Tapping an episode's checkmark. Decides which prompt (if any) to
@@ -395,7 +390,6 @@ export function ShowDetailScreen() {
       commitWatchedEpisodes(toggleEpisodeWatched(show!, season, episode));
     } else {
       toggleEpisode(show!.id, season, episode);
-      syncToDrive();
     }
   }
 
@@ -406,7 +400,6 @@ export function ShowDetailScreen() {
       commitWatchedEpisodes(toggleEpisodeWatched(show!, season, episode));
     } else {
       toggleEpisode(show!.id, season, episode);
-      syncToDrive();
     }
     setSkipPrompt(null);
   }
@@ -418,7 +411,6 @@ export function ShowDetailScreen() {
       commitWatchedEpisodes(markEpisodeAndPriorWatched(show!, season, episode));
     } else {
       markPriorEpisodesWatched(show!.id, season, episode);
-      syncToDrive();
     }
     setSkipPrompt(null);
   }
@@ -430,7 +422,6 @@ export function ShowDetailScreen() {
       commitWatchedEpisodes(incrementEpisodeWatchCount(show!, season, episode));
     } else {
       rewatchEpisodeAction(show!.id, season, episode);
-      syncToDrive();
     }
     setRewatchPrompt(null);
   }
@@ -444,7 +435,6 @@ export function ShowDetailScreen() {
       // toggleEpisode removes it entirely (count → 0) since we already
       // know it's currently watched.
       toggleEpisode(show!.id, season, episode);
-      syncToDrive();
     }
     setRewatchPrompt(null);
   }
@@ -461,11 +451,9 @@ export function ShowDetailScreen() {
       const newShow = { ...watchedShow, status: deriveStatus(watchedShow) };
       addShow(newShow);
       setSelectedShow(newShow.id);
-      syncToDrive();
       return;
     }
     toggleSeason(show!.id, season);
-    syncToDrive();
   }
 
   function handleAddToWatchlist() {
@@ -477,12 +465,10 @@ export function ShowDetailScreen() {
     // preview reached via another show's Related Shows would incorrectly
     // close all the way out to Home instead of staying on this show.
     setSelectedShow(show!.id);
-    syncToDrive();
   }
 
   function handleStatusChange(status: WatchStatus) {
     setShowStatus(show!.id, status);
-    syncToDrive();
   }
 
   function handleRemove() {
@@ -491,7 +477,6 @@ export function ShowDetailScreen() {
 
   function handleConfirmRemove() {
     removeShow(show!.id);
-    syncToDrive();
     setShowRemovePrompt(false);
     handleClose();
   }
