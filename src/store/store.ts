@@ -1,13 +1,30 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
-import type { EpisodeInfo, SearchResult, TrackedShow } from '../types/show';
+import type { EpisodeInfo, SearchResult, ShowSource, TrackedShow } from '../types/show';
 import { CURRENT_EPISODES_VERSION } from '../types/show';
 import { deriveStatus, episodeKey, getNextEpisode, getLastWatchedEpisode, toggleEpisodeWatched, toggleSeasonWatched, markEpisodeAndPriorWatched, incrementEpisodeWatchCount, setEpisodeWatchCount } from '../utils/progress';
 import { migrateLegacyTrackerData } from '../utils/migrateLegacyData';
 
 export type Tab = 'home' | 'search' | 'settings';
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
+/** How the shows within each Home screen section (Watching, Watchlist,
+ * Up to date, Completed) are ordered. 'default' keeps each section's
+ * own existing order (e.g. Watching's most-recently-watched-first) —
+ * every other option overrides all sections with the same comparator. */
+export type HomeSortBy = 'default' | 'rating' | 'completion' | 'title';
+
+/** A snapshot of the four fields that together describe which overlay
+ * screen (if any) is currently on top — Show Detail, Genre, or Search
+ * Results, mutually exclusive by construction since pushOverlay always
+ * clears all four before applying the new one. Used purely as a
+ * restore point on overlayHistory; see pushOverlay/popOverlay. */
+interface OverlaySnapshot {
+  selectedShowId: string | null;
+  previewShow: TrackedShow | null;
+  selectedGenre: { name: string; source: ShowSource } | null;
+  searchResultsQuery: string | null;
+}
 
 interface AppState {
   // --- auth (never persisted — see partialize below) ---
@@ -35,7 +52,7 @@ interface AppState {
   updateSeriesStatus: (id: string, seriesStatus: TrackedShow['seriesStatus']) => void;
   backfillGenres: (id: string, genres: string[]) => void;
   backfillCastNames: (id: string, castNames: string[]) => void;
-  backfillImdbRating: (id: string, imdbRating: string | null) => void;
+  backfillImdbRating: (id: string, imdbRating: string | null, imdbRatingSource: 'imdb' | 'anilist' | null) => void;
   backfillAgeRating: (id: string, ageRating: string | null) => void;
   backfillBackdrops: (id: string, backdropUrls: string[]) => void;
   backfillYears: (id: string, startYear: string | null, endYear: string | null) => void;
@@ -63,12 +80,50 @@ interface AppState {
   searchResetToken: number;
   resetSearchTab: () => void;
   selectedShowId: string | null;
+  /** Sets which tracked show's detail screen is open WITHOUT touching
+   * overlayHistory — only for transitioning a preview show into its
+   * now-tracked counterpart in place (add-to-watchlist, marking an
+   * episode watched from a preview, ...), which is the same screen
+   * continuing to show the same show, not a new navigation. Anything
+   * that actually opens the detail screen from a tap elsewhere should
+   * use pushOverlay instead, so the back button can undo it. */
   setSelectedShow: (id: string | null) => void;
   /** A show whose details are being viewed from the Search tab but that
    * hasn't been added to the tracker yet. Kept separate from `shows` so
    * browsing details never accidentally persists/syncs an unadded show. */
   previewShow: TrackedShow | null;
   setPreviewShow: (show: TrackedShow | null) => void;
+  /** Which genre chip (if any) was tapped from a show's detail screen,
+   * driving the GenreScreen overlay — kept as {name, source} rather
+   * than just a name because TMDB and AniList each have their own
+   * genre vocabulary/lookup, so the browse query needs to know which
+   * one to use. Never persisted — meaningless across a reload. */
+  selectedGenre: { name: string; source: ShowSource } | null;
+  /** The submitted (not live-as-you-typed) search query, driving the
+   * SearchResultsScreen overlay — set when the user presses the Search
+   * tab's Search button/Enter, not on every debounced keystroke. Never
+   * persisted — meaningless across a reload. */
+  searchResultsQuery: string | null;
+  /** History of overlay screens navigated away from via pushOverlay,
+   * most-recent-last — popOverlay restores the top entry (or closes
+   * everything if the stack is empty). Lets the Show Detail / Genre /
+   * Search Results overlays nest arbitrarily deep (show -> genre ->
+   * show -> related show -> ...) while the back button always undoes
+   * exactly one step, instead of exiting the whole chain at once like
+   * plain setSelectedShow/setSelectedGenre/setSearchResultsQuery calls
+   * would. Never persisted — meaningless across a reload. */
+  overlayHistory: OverlaySnapshot[];
+  /** Records a restore point for whatever's currently shown (captured
+   * automatically from selectedShowId/previewShow/selectedGenre/
+   * searchResultsQuery), then shows `next` instead — clearing the
+   * other three. Use for every tap that opens one of these overlay
+   * screens (a Home screen show, a search result, submitting a search,
+   * a genre chip, a Related Show tile, ...). */
+  pushOverlay: (next: Partial<OverlaySnapshot>) => void;
+  /** Restores whatever pushOverlay most recently recorded, or closes
+   * everything if there's nothing left to restore. The back button /
+   * close gesture for every one of these overlay screens. */
+  popOverlay: () => void;
 
   // --- drive sync bookkeeping ---
   driveFileId: string | null;
@@ -104,6 +159,17 @@ interface AppState {
    * preference toggled in Settings. */
   showWatchHistory: boolean;
   setShowWatchHistory: (show: boolean) => void;
+
+  /** How shows are ordered within each Home screen section. A display
+   * preference, persisted like homeViewMode. */
+  homeSortBy: HomeSortBy;
+  setHomeSortBy: (sortBy: HomeSortBy) => void;
+  /** Genre names to filter the Home screen down to (a show must have at
+   * least one of these) — empty means no filter. Persisted like
+   * homeSortBy/homeViewMode. */
+  homeGenreFilter: string[];
+  setHomeGenreFilter: (genres: string[]) => void;
+  toggleHomeGenreFilter: (genre: string) => void;
 }
 
 // idb-keyval backed storage adapter so Zustand's persist middleware can
@@ -228,10 +294,15 @@ export const useAppStore = create<AppState>()(
 
       // Same one-time-backfill pattern as genres, for shows tracked
       // before `imdbRating` was cached on TrackedShow instead of being
-      // re-fetched from OMDb on every view.
-      backfillImdbRating: (id, imdbRating) =>
+      // re-fetched from OMDb on every view. Both backfill call sites
+      // (ShowDetailScreen, HomeScreen) only ever call OMDb directly —
+      // the AniList-community-score fallback only happens inside
+      // buildTrackedShow — so imdbRatingSource is always 'imdb' here.
+      backfillImdbRating: (id, imdbRating, imdbRatingSource) =>
         set((s) => ({
-          shows: s.shows.map((sh) => (sh.id === id ? touch({ ...sh, imdbRating }) : sh)),
+          shows: s.shows.map((sh) =>
+            sh.id === id ? touch({ ...sh, imdbRating, imdbRatingSource: imdbRatingSource ?? undefined }) : sh
+          ),
         })),
 
       // Same one-time-backfill pattern, for shows tracked before
@@ -330,6 +401,39 @@ export const useAppStore = create<AppState>()(
       setSelectedShow: (id) => set({ selectedShowId: id }),
       previewShow: null,
       setPreviewShow: (show) => set({ previewShow: show }),
+      selectedGenre: null,
+      searchResultsQuery: null,
+
+      overlayHistory: [],
+      pushOverlay: (next) =>
+        set((s) => ({
+          overlayHistory: [
+            ...s.overlayHistory,
+            {
+              selectedShowId: s.selectedShowId,
+              previewShow: s.previewShow,
+              selectedGenre: s.selectedGenre,
+              searchResultsQuery: s.searchResultsQuery,
+            },
+          ],
+          selectedShowId: null,
+          previewShow: null,
+          selectedGenre: null,
+          searchResultsQuery: null,
+          ...next,
+        })),
+      popOverlay: () =>
+        set((s) => {
+          const history = [...s.overlayHistory];
+          const restore = history.pop();
+          return {
+            overlayHistory: history,
+            selectedShowId: restore?.selectedShowId ?? null,
+            previewShow: restore?.previewShow ?? null,
+            selectedGenre: restore?.selectedGenre ?? null,
+            searchResultsQuery: restore?.searchResultsQuery ?? null,
+          };
+        }),
 
       driveFileId: null,
       setDriveFileId: (id) => set({ driveFileId: id }),
@@ -348,6 +452,18 @@ export const useAppStore = create<AppState>()(
 
       showWatchHistory: true,
       setShowWatchHistory: (show) => set({ showWatchHistory: show }),
+
+      homeSortBy: 'default',
+      setHomeSortBy: (sortBy) => set({ homeSortBy: sortBy }),
+
+      homeGenreFilter: [],
+      setHomeGenreFilter: (genres) => set({ homeGenreFilter: genres }),
+      toggleHomeGenreFilter: (genre) =>
+        set((s) => ({
+          homeGenreFilter: s.homeGenreFilter.includes(genre)
+            ? s.homeGenreFilter.filter((g) => g !== genre)
+            : [...s.homeGenreFilter, genre],
+        })),
     }),
     {
       name: 'tv-tracker-storage',
@@ -366,6 +482,8 @@ export const useAppStore = create<AppState>()(
         homeViewMode: state.homeViewMode,
         onlyShowWatching: state.onlyShowWatching,
         showWatchHistory: state.showWatchHistory,
+        homeSortBy: state.homeSortBy,
+        homeGenreFilter: state.homeGenreFilter,
       }),
       // Bumped for the watchedEpisodes migration — upgrades anyone
       // rehydrating from an older locally-persisted copy.

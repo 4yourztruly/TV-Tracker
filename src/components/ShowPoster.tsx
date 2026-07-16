@@ -19,7 +19,7 @@ interface Props {
 }
 
 export function ShowPoster({ show, onReady }: Props) {
-  const setSelectedShow = useAppStore((s) => s.setSelectedShow);
+  const pushOverlay = useAppStore((s) => s.pushOverlay);
   const progress = getPosterProgress(show);
   const [posterReady, setPosterReady] = useState(!show.posterUrl);
   const posterImgRef = useRef<HTMLImageElement>(null);
@@ -39,7 +39,7 @@ export function ShowPoster({ show, onReady }: Props) {
 
   return (
     <button
-      onClick={() => setSelectedShow(show.id)}
+      onClick={() => pushOverlay({ selectedShowId: show.id })}
       className="group flex flex-col gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-500 focus-visible:outline-offset-2 rounded-lg"
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-inset ring-ink-800 transition-transform group-active:scale-[0.97]">

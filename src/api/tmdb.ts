@@ -50,6 +50,9 @@ function mapTmdbResult(r: any): SearchResult {
     posterUrl: r.poster_path ? `${TMDB_IMAGE_BASE}${r.poster_path}` : undefined,
     summary: r.overview || undefined,
     year: r.first_air_date ? r.first_air_date.slice(0, 4) : undefined,
+    // vote_average is already part of every TMDB search/discover
+    // response — free to carry along, no extra request.
+    rating: typeof r.vote_average === 'number' && r.vote_average > 0 ? r.vote_average.toFixed(1) : undefined,
   };
 }
 
@@ -117,6 +120,33 @@ export async function getTmdbRelatedShows(
     .filter((r: any) => r.id !== excludeShowId)
     .slice(0, RELATED_SHOWS_LIMIT)
     .map(mapTmdbResult);
+}
+
+/** Browse TMDB TV shows in a given genre, most popular first — used by
+ * GenreScreen when a genre chip is tapped on a TMDB show's detail
+ * screen. This is `with_genres` for a single genre id, so any show
+ * actually tagged with it is eligible (a show with both Drama and Crime
+ * is equally eligible under either).
+ *
+ * Deliberately sorts by popularity rather than rating: a plain rating
+ * sort (tried earlier) surfaces obscure shows with a handful of 10/10
+ * votes above shows people actually know, which reads as "random"
+ * results for a browse screen — popularity.desc keeps this matching
+ * what the name means for a normal viewer. Returns [] for a genre name
+ * not in TMDB_TV_GENRE_IDS (shouldn't happen in practice — genre chips
+ * only ever come from a show's own already-fetched `genres`, which are
+ * TMDB's own names). */
+export async function getTmdbShowsByGenre(genreName: string): Promise<SearchResult[]> {
+  requireKey();
+  const genreId = TMDB_TV_GENRE_IDS[genreName];
+  if (genreId == null) return [];
+
+  const res = await fetchWithTimeout(
+    `${TMDB_BASE}/discover/tv?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=popularity.desc`
+  );
+  if (!res.ok) throw new Error(`TMDB discover fetch failed: ${res.status}`);
+  const data = await res.json();
+  return (data.results || []).map(mapTmdbResult);
 }
 
 export interface TmdbShowDetails {

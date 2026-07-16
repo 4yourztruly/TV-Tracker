@@ -94,8 +94,20 @@ export interface TrackedShow {
    * for it — both are backfilled/left alone rather than retried. For
    * anime where OMDb has no match, this falls back to AniList's own
    * community score instead (see buildTrackedShow) — still just a
-   * plain rating number to the UI, not literally sourced from IMDb. */
+   * plain rating number to the UI, not literally sourced from IMDb;
+   * see `imdbRatingSource` for which one a given value actually is. */
   imdbRating?: string | null;
+  /** Which service `imdbRating` actually came from — 'imdb' for the
+   * normal OMDb lookup, 'anilist' for the community-score fallback
+   * above. Drives the brand badge shown next to the rating (see
+   * RatingBadge). Every backfill path (buildTrackedShow, the detail
+   * screen's and Home screen's own backfill effects) always sets this
+   * alongside `imdbRating` — `undefined` only happens for a show
+   * tracked before this field existed, and is treated as 'imdb' in the
+   * UI (the overwhelmingly common case, and the only one those older
+   * backfill paths — which never had the AniList fallback — could ever
+   * have produced). */
+  imdbRatingSource?: 'imdb' | 'anilist';
 
   /** Content/age rating (e.g. "TV-MA", "R"), when the source API
    * reports one. Same undefined-vs-null convention as `imdbRating`. */
@@ -136,6 +148,13 @@ export interface SearchResult {
   posterUrl?: string;
   summary?: string;
   year?: string;
+  /** The source's OWN rating (TMDB's vote_average, AniList's
+   * averageScore) — already included in the same response this result
+   * came from, so it costs nothing extra to carry along. Deliberately
+   * NOT the same thing as TrackedShow.imdbRating: this is whichever
+   * source's community score, not an OMDb-sourced IMDb rating. Used by
+   * GenreScreen to sort/display without a per-result OMDb lookup. */
+  rating?: string;
 }
 
 /** Shape of the JSON blob synced to the Google Drive appData folder. */

@@ -1,11 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TrackedShow } from '../types/show';
-import { useAppStore } from '../store/store';
+import { useAppStore, type HomeSortBy } from '../store/store';
 import { ShowCard } from '../components/ShowCard';
 import { ShowPoster } from '../components/ShowPoster';
 import { WatchHistoryItem } from '../components/WatchHistoryItem';
 import { Spinner } from '../components/Spinner';
-import { isShowUpToDate, getLastWatchedAt } from '../utils/progress';
+import { getImdbRating } from '../api/omdb';
+import { isShowUpToDate, getLastWatchedAt, getPosterProgress } from '../utils/progress';
+
+/** Comparator for the non-default sort options — 'default' is handled
+ * separately per-section (see HomeScreen) since it means something
+ * different in each one (e.g. Watching's recency order), not a single
+ * shared comparator. */
+function compareShows(a: TrackedShow, b: TrackedShow, sortBy: HomeSortBy): number {
+  switch (sortBy) {
+    case 'rating': {
+      const ra = a.imdbRating ? parseFloat(a.imdbRating) : -1;
+      const rb = b.imdbRating ? parseFloat(b.imdbRating) : -1;
+      return rb - ra;
+    }
+    case 'completion':
+      return getPosterProgress(b).fraction - getPosterProgress(a).fraction;
+    case 'title':
+      return a.title.localeCompare(b.title);
+    default:
+      return 0;
+  }
+}
 
 const WATCH_HISTORY_PAGE_SIZE = 10;
 // How close to the very bottom of the scroll container (in px) before
@@ -17,6 +38,48 @@ export function HomeScreen() {
   const homeViewMode = useAppStore((s) => s.homeViewMode);
   const onlyShowWatching = useAppStore((s) => s.onlyShowWatching);
   const showWatchHistory = useAppStore((s) => s.showWatchHistory);
+  const homeSortBy = useAppStore((s) => s.homeSortBy);
+  const homeGenreFilter = useAppStore((s) => s.homeGenreFilter);
+
+  // A show must have at least one of the selected genres to survive
+  // this filter — applied before bucketing into sections below, so
+  // Watching/Watchlist/Up to date/Completed all respect it. Watch
+  // History (a chronological log, not a status bucket) is
+  // deliberately left unfiltered.
+  const filteredShows =
+    homeGenreFilter.length > 0
+      ? shows.filter((s) => s.genres?.some((g) => homeGenreFilter.includes(g)))
+      : shows;
+
+  // Sorting by rating only means something for shows whose imdbRating
+  // has actually been fetched — most have it cached from being opened
+  // in the detail screen at least once, but some never have been. Backs
+  // those in specifically (only while "IMDb Rating" sort is selected,
+  // only the currently-visible/filtered shows, and only once per show
+  // per session via the ref below) rather than either leaving them
+  // stuck unrated at the bottom or eagerly fetching every tracked
+  // show's rating on every Home visit regardless of sort.
+  const backfillImdbRating = useAppStore((s) => s.backfillImdbRating);
+  const ratingBackfillAttempted = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (homeSortBy !== 'rating') return;
+    const missing = filteredShows.filter(
+      (s) => s.imdbRating === undefined && !ratingBackfillAttempted.current.has(s.id)
+    );
+    if (missing.length === 0) return;
+    missing.forEach((s) => {
+      ratingBackfillAttempted.current.add(s.id);
+      getImdbRating(s.title).then((rating) => {
+        // A transient failure (undefined) is left unset rather than
+        // persisted as "no rating" — same convention as the detail
+        // screen's own backfill — but is still marked attempted above
+        // so a slow OMDb outage doesn't retry every render this
+        // session either.
+        if (rating !== undefined) backfillImdbRating(s.id, rating, 'imdb');
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeSortBy, filteredShows]);
 
   // Every home-screen "mark watched" tap across every show, flattened
   // into one feed and sorted newest-first (oldest last) — a separate,
@@ -36,18 +99,30 @@ export function HomeScreen() {
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(WATCH_HISTORY_PAGE_SIZE);
   const visibleWatchHistory = watchHistory.slice(0, visibleHistoryCount);
 
-  const upToDate = shows.filter(isShowUpToDate);
+  // Non-default sort options override every section's own ordering
+  // with the same comparator; 'default' leaves each section exactly as
+  // it was (e.g. Watching's recency order, others in insertion order).
+  const sortSection = (section: TrackedShow[]) =>
+    homeSortBy === 'default' ? section : [...section].sort((a, b) => compareShows(a, b, homeSortBy));
+
+  const upToDate = sortSection(filteredShows.filter(isShowUpToDate));
   // Most-recently-watched-episode first, so watching another episode of
   // a lower show bumps it back to the top — driven by the same Watch
   // History entries as the section below, just collapsed to one row per
   // show. Unwatching removes its Watch History entry (see
   // unwatchLastEpisode), so it naturally drops back out of "just
-  // watched" instead of still being prioritized.
-  const watching = shows
-    .filter((s) => s.status === 'watching' && !isShowUpToDate(s))
-    .sort((a, b) => (getLastWatchedAt(b) ?? 0) - (getLastWatchedAt(a) ?? 0));
-  const unwatched = shows.filter((s) => s.status === 'unwatched');
-  const completed = shows.filter((s) => s.status === 'completed' && !isShowUpToDate(s));
+  // watched" instead of still being prioritized. Only the default sort
+  // uses this recency order — any other sort overrides it like every
+  // other section.
+  const watchingFiltered = filteredShows.filter((s) => s.status === 'watching' && !isShowUpToDate(s));
+  const watching =
+    homeSortBy === 'default'
+      ? [...watchingFiltered].sort((a, b) => (getLastWatchedAt(b) ?? 0) - (getLastWatchedAt(a) ?? 0))
+      : sortSection(watchingFiltered);
+  const unwatched = sortSection(filteredShows.filter((s) => s.status === 'unwatched'));
+  const completed = sortSection(
+    filteredShows.filter((s) => s.status === 'completed' && !isShowUpToDate(s))
+  );
 
   // Every card/poster reports in once its own async data (poster image,
   // next-episode title) has settled, so the whole list can be held
@@ -57,7 +132,7 @@ export function HomeScreen() {
   const markReady = useCallback((id: string) => {
     setReadyIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
-  const visibleShows = onlyShowWatching ? watching : shows;
+  const visibleShows = onlyShowWatching ? watching : filteredShows;
 
   // Safety net: a stalled network request (poor mobile connection,
   // etc.) can leave a single card's poster/title promise never
@@ -108,6 +183,17 @@ export function HomeScreen() {
   }
 
   const isGrid = homeViewMode === 'grid';
+
+  if (homeGenreFilter.length > 0 && filteredShows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+        <p className="text-sm font-medium text-ink-200">No shows match this filter</p>
+        <p className="text-xs text-ink-400">
+          Try selecting different genres from the filter menu.
+        </p>
+      </div>
+    );
+  }
 
   if (onlyShowWatching && watching.length === 0) {
     return (

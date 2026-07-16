@@ -6,6 +6,9 @@ import { HomeScreen } from './screens/HomeScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ShowDetailScreen } from './screens/ShowDetailScreen';
+import { GenreScreen } from './screens/GenreScreen';
+import { SearchResultsScreen } from './screens/SearchResultsScreen';
+import { HomeSortFab } from './components/HomeSortFab';
 import { useAppStore } from './store/store';
 import { initGoogleAuth, onGoogleAuthReady, onTokenChange, trySilentSignIn, isTokenFresh } from './api/auth';
 
@@ -39,6 +42,8 @@ export default function App() {
   const activeTab = useAppStore((s) => s.activeTab);
   const selectedShowId = useAppStore((s) => s.selectedShowId);
   const previewShow = useAppStore((s) => s.previewShow);
+  const selectedGenre = useAppStore((s) => s.selectedGenre);
+  const searchResultsQuery = useAppStore((s) => s.searchResultsQuery);
   const setSignedIn = useAppStore((s) => s.setSignedIn);
   const setGoogleAuthReady = useAppStore((s) => s.setGoogleAuthReady);
 
@@ -152,7 +157,10 @@ export default function App() {
           {activeTab === 'settings' && <SettingsScreen />}
         </main>
         <TabBar />
+        <HomeSortFab />
         {hasHydrated && (selectedShowId || previewShow) && <ShowDetailScreen />}
+        {hasHydrated && selectedGenre && <GenreScreen />}
+        {hasHydrated && searchResultsQuery && <SearchResultsScreen />}
       </div>
     </div>
   );

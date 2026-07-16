@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Star } from 'lucide-react';
 import { useAppStore } from '../store/store';
 import { SeasonAccordion } from '../components/SeasonAccordion';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ImageLightbox } from '../components/ImageLightbox';
 import { RelatedShows } from '../components/RelatedShows';
+import { RatingSourceIcon } from '../components/RatingBadge';
+import { ratingTextColorClass } from '../utils/ratingSource';
 import { Spinner } from '../components/Spinner';
 import { getImdbRating } from '../api/omdb';
 import { toFullscreenPosterUrl } from '../api/tmdb';
@@ -37,7 +38,8 @@ export function ShowDetailScreen() {
   const selectedShowId = useAppStore((s) => s.selectedShowId);
   const setSelectedShow = useAppStore((s) => s.setSelectedShow);
   const previewShow = useAppStore((s) => s.previewShow);
-  const setPreviewShow = useAppStore((s) => s.setPreviewShow);
+  const pushOverlay = useAppStore((s) => s.pushOverlay);
+  const popOverlay = useAppStore((s) => s.popOverlay);
   const shows = useAppStore((s) => s.shows);
   const addShow = useAppStore((s) => s.addShow);
   const toggleEpisode = useAppStore((s) => s.toggleEpisode);
@@ -218,7 +220,7 @@ export function ShowDetailScreen() {
       // persisted; a transient failure (rating === undefined) is left
       // unset so it's retried next time this show is opened.
       if (rating !== undefined) {
-        backfillImdbRating(trackedShow.id, rating);
+        backfillImdbRating(trackedShow.id, rating, 'imdb');
       }
       setImdbCheckAttempted(true);
     });
@@ -259,19 +261,17 @@ export function ShowDetailScreen() {
       (s) => s.source === result.source && s.sourceId === result.sourceId
     );
     if (existing) {
-      setSelectedShow(existing.id);
+      // pushOverlay records this show as a restore point before
+      // switching, so the back button returns here instead of exiting
+      // straight past it.
+      pushOverlay({ selectedShowId: existing.id });
       return;
     }
     const key = `${result.source}-${result.sourceId}`;
     setOpeningRelatedKey(key);
     try {
       const built = await buildTrackedShow(result);
-      // `show` resolves to trackedShow ?? previewShow — since we're
-      // currently viewing a *tracked* show, selectedShowId is still
-      // set to it, so setPreviewShow alone would do nothing visible.
-      // Clear it so the screen actually falls through to the new preview.
-      setPreviewShow(built);
-      setSelectedShow(null);
+      pushOverlay({ previewShow: built });
     } catch (err) {
       console.error('Failed to load related show details:', err);
     } finally {
@@ -284,8 +284,7 @@ export function ShowDetailScreen() {
   const yearRange = formatYearRange(show.startYear, show.endYear, show.seriesStatus);
 
   function handleClose() {
-    setSelectedShow(null);
-    setPreviewShow(null);
+    popOverlay();
   }
 
   function handleEdgePointerDown(e: React.PointerEvent) {
@@ -597,7 +596,17 @@ export function ShowDetailScreen() {
                   </p>
                 )}
                 {show.genres && show.genres.length > 0 && (
-                  <p className="text-xs text-ink-400">{show.genres.join(', ')}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {show.genres.map((genre) => (
+                      <button
+                        key={genre}
+                        onClick={() => pushOverlay({ selectedGenre: { name: genre, source: show.source } })}
+                        className="rounded border border-ink-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-300 transition-colors hover:border-signal-500 hover:text-signal-500"
+                      >
+                        {genre}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 {show.castNames && show.castNames.length > 0 && (
                   <p className="text-xs text-ink-400">{show.castNames.join(', ')}</p>
@@ -615,8 +624,10 @@ export function ShowDetailScreen() {
                 {show.title}
               </h3>
               {imdbRating && (
-                <span className="inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-semibold text-signal-500">
-                  <Star className="h-3 w-3 fill-current" />
+                <span
+                  className={`inline-flex flex-shrink-0 items-center gap-1 text-xs font-semibold ${ratingTextColorClass(show.imdbRatingSource ?? 'imdb')}`}
+                >
+                  <RatingSourceIcon source={show.imdbRatingSource ?? 'imdb'} className="h-3.5 w-3.5" />
                   {imdbRating}
                 </span>
               )}

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Star } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { SearchResult } from '../types/show';
 import { searchAll } from '../api/search';
 import { getTopRatedShows, topRatedToSearchResult } from '../api/topRated';
 import { useAppStore } from '../store/store';
 import { buildTrackedShow } from '../utils/buildTrackedShow';
-import { ImdbRating } from '../components/ImdbRating';
+import { RatingBadge, RatingSourceIcon } from '../components/RatingBadge';
+import { ratingTextColorClass, resolveSearchResultRating } from '../utils/ratingSource';
 import { Spinner } from '../components/Spinner';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -44,8 +45,8 @@ export function SearchScreen() {
 
   const shows = useAppStore((s) => s.shows);
   const addShow = useAppStore((s) => s.addShow);
-  const setPreviewShow = useAppStore((s) => s.setPreviewShow);
   const searchResetToken = useAppStore((s) => s.searchResetToken);
+  const pushOverlay = useAppStore((s) => s.pushOverlay);
 
   // Tapping the Search tab's icon while already on it resets back to
   // the default Top Rated browse view instead of leaving whatever was
@@ -91,9 +92,14 @@ export function SearchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // The debounced effect above already keeps this tab's own compact
+  // list updated as-you-type — submitting (Enter or the Search button)
+  // is a deliberate "show me everything" action, opening the fuller
+  // SearchResultsScreen overlay instead.
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); // Enter/button just avoids a page reload — the
-    // debounced effect above already handles running the search.
+    e.preventDefault();
+    const trimmed = query.trim();
+    if (trimmed) pushOverlay({ searchResultsQuery: trimmed });
   }
 
   function existingTrackedShow(result: SearchResult) {
@@ -122,14 +128,14 @@ export function SearchScreen() {
   async function handleOpenDetails(result: SearchResult) {
     const existing = existingTrackedShow(result);
     if (existing) {
-      useAppStore.getState().setSelectedShow(existing.id);
+      pushOverlay({ selectedShowId: existing.id });
       return;
     }
     const key = `${result.source}-${result.sourceId}`;
     setOpeningId(key);
     setOpenErrorKey(null);
     try {
-      setPreviewShow(await buildTrackedShow(result));
+      pushOverlay({ previewShow: await buildTrackedShow(result) });
     } catch (err) {
       console.error('Failed to load show details:', err);
       setOpenErrorKey(key);
@@ -141,12 +147,24 @@ export function SearchScreen() {
   return (
     <div className="flex flex-col gap-4 px-4 py-4">
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search shows or anime…"
-          className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-base text-ink-100 placeholder:text-ink-400 focus:border-signal-500 focus:outline-none"
-        />
+        <div className="relative flex-1">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search shows or anime…"
+            className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 pr-9 text-base text-ink-100 placeholder:text-ink-400 focus:border-signal-500 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-ink-400 transition-colors hover:text-ink-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <button
           type="submit"
           disabled={loading}
@@ -196,8 +214,10 @@ export function SearchScreen() {
                     <p className="min-w-0 flex-1 truncate text-xs font-medium text-ink-200">
                       {entry.title}
                     </p>
-                    <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-signal-500">
-                      <Star className="h-2.5 w-2.5 fill-current" />
+                    <span
+                      className={`flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold ${ratingTextColorClass('imdb')}`}
+                    >
+                      <RatingSourceIcon source="imdb" className="h-2.5 w-2.5" />
                       {entry.imdbRating}
                     </span>
                   </div>
@@ -220,6 +240,7 @@ export function SearchScreen() {
               const key = `${result.source}-${result.sourceId}`;
               const existing = existingTrackedShow(result);
               const tracked = !!existing;
+              const resolvedRating = resolveSearchResultRating(result, existing);
               return (
                 <div
                   key={key}
@@ -245,10 +266,11 @@ export function SearchScreen() {
                           : `${result.title}${result.year ? ` (${result.year})` : ''}`}
                       </span>
                       {openingId !== key && (
-                        <ImdbRating
+                        <RatingBadge
                           title={result.title}
                           year={result.year}
-                          knownRating={existing?.imdbRating}
+                          knownRating={resolvedRating.knownRating}
+                          source={resolvedRating.source}
                           onReady={() => markRatingReady(key)}
                         />
                       )}

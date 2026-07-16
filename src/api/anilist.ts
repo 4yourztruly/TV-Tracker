@@ -51,6 +51,7 @@ query ($search: String) {
       coverImage { large }
       description(asHtml: false)
       seasonYear
+      averageScore
     }
   }
 }`;
@@ -67,6 +68,15 @@ export async function searchAnilist(query: string): Promise<SearchResult[]> {
       posterUrl: m.coverImage?.large || undefined,
       summary: stripHtml(m.description),
       year: m.seasonYear ? String(m.seasonYear) : undefined,
+      // averageScore is already part of this same response — free,
+      // same reasoning as TMDB's vote_average in mapTmdbResult. Used as
+      // the displayed rating for anime search results instead of an
+      // OMDb title lookup (see SearchScreen/SearchResultsScreen) —
+      // OMDb has thin, unreliable anime coverage and matches by title
+      // alone, which can collide with an unrelated TMDB entry sharing
+      // the same name (e.g. searching "Bleach" returns both a TMDB TV
+      // entry and this AniList entry).
+      rating: typeof m.averageScore === 'number' ? (m.averageScore / 10).toFixed(1) : undefined,
     }));
 }
 
@@ -245,6 +255,51 @@ export async function getAnilistEpisodes(malId: number) {
   });
 
   return { episodes, hasNextPage: false };
+}
+
+// Matches TMDB discover's default page size (20).
+const GENRE_BROWSE_LIMIT = 20;
+
+/** Browse AniList anime in a given genre, most popular first — used by
+ * GenreScreen when a genre chip is tapped on an anime's detail screen.
+ * Unlike TMDB, AniList takes the genre name directly (its own
+ * vocabulary, e.g. "Action", "Slice of Life"), no id lookup needed.
+ *
+ * Deliberately sorts by popularity rather than score, same reasoning as
+ * TMDB's getTmdbShowsByGenre: a plain score sort surfaces obscure,
+ * low-fandom entries above anime people actually know, which reads as
+ * "random" results for a browse screen. */
+export async function getAnilistShowsByGenre(genreName: string): Promise<SearchResult[]> {
+  const data = await anilistQuery(
+    `query ($genre: String, $perPage: Int) {
+      Page(perPage: $perPage) {
+        media(genre: $genre, type: ANIME, sort: POPULARITY_DESC) {
+          idMal
+          title { romaji english }
+          coverImage { large }
+          description(asHtml: false)
+          seasonYear
+          averageScore
+        }
+      }
+    }`,
+    { genre: genreName, perPage: GENRE_BROWSE_LIMIT }
+  );
+  const media: any[] = data?.Page?.media ?? [];
+  return media
+    .filter((m) => m.idMal != null)
+    .map((m) => ({
+      source: 'anilist' as const,
+      sourceId: m.idMal,
+      title: pickTitle(m.title),
+      posterUrl: m.coverImage?.large || undefined,
+      summary: stripHtml(m.description),
+      year: m.seasonYear ? String(m.seasonYear) : undefined,
+      // averageScore is already part of this same response — free,
+      // same reasoning as TMDB's vote_average in mapTmdbResult. Shown
+      // on each row but no longer used to sort (see doc comment above).
+      rating: typeof m.averageScore === 'number' ? (m.averageScore / 10).toFixed(1) : undefined,
+    }));
 }
 
 const RELATED_SHOWS_LIMIT = 5;

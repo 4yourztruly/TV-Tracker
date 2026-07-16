@@ -31,6 +31,8 @@ export async function buildTrackedShow(result: SearchResult): Promise<TrackedSho
   // (null/undefined) but the source itself reports a community score
   // (AniList), show that instead of no rating at all.
   const imdbRating = omdbRating != null ? omdbRating : (details.communityScore ?? omdbRating);
+  const imdbRatingSource: 'imdb' | 'anilist' | undefined =
+    imdbRating == null ? undefined : omdbRating != null ? 'imdb' : 'anilist';
   return {
     id: crypto.randomUUID(),
     source: result.source,
@@ -58,6 +60,7 @@ export async function buildTrackedShow(result: SearchResult): Promise<TrackedSho
     startYear: details.startYear ?? null,
     endYear: details.endYear ?? null,
     imdbRating,
+    imdbRatingSource,
     relatedShows,
     seasons: details.seasons,
     addedAt: Date.now(),

@@ -15,7 +15,7 @@ interface Props {
  * scrolled into view, via `pendingEpisodeFocus` (see
  * ShowDetailScreen/SeasonAccordion). */
 export function WatchHistoryItem({ show, season, episode }: Props) {
-  const setSelectedShow = useAppStore((s) => s.setSelectedShow);
+  const pushOverlay = useAppStore((s) => s.pushOverlay);
   const setPendingEpisodeFocus = useAppStore((s) => s.setPendingEpisodeFocus);
 
   const episodeTitle = show.seasons
@@ -24,7 +24,7 @@ export function WatchHistoryItem({ show, season, episode }: Props) {
 
   function handleClick() {
     setPendingEpisodeFocus({ season, episode });
-    setSelectedShow(show.id);
+    pushOverlay({ selectedShowId: show.id });
   }
 
   return (

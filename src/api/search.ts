@@ -1,12 +1,30 @@
 import type { EpisodeInfo, SearchResult, ShowSource, SeasonSummary, SeriesStatus } from '../types/show';
-import { searchTmdb, getTmdbShowDetails, getTmdbSeasonEpisodes, getTmdbRelatedShows } from './tmdb';
-import { searchAnilist, getAnilistAnimeDetails, getAnilistEpisodes, getAnilistRelatedShows } from './anilist';
+import {
+  searchTmdb,
+  getTmdbShowDetails,
+  getTmdbSeasonEpisodes,
+  getTmdbRelatedShows,
+  getTmdbShowsByGenre,
+} from './tmdb';
+import {
+  searchAnilist,
+  getAnilistAnimeDetails,
+  getAnilistEpisodes,
+  getAnilistRelatedShows,
+  getAnilistShowsByGenre,
+} from './anilist';
 
 // In-memory only, per query string — search-as-you-type means the
 // same text often gets searched again a moment later (backspacing
 // and retyping, refocusing the field, ...); this just avoids re-
 // hitting both APIs for a query already answered this session.
 const searchCache = new Map<string, SearchResult[]>();
+
+// In-memory only, per source+genre — re-opening the same genre chip
+// (from the same show again, or from a different show that shares the
+// genre) within a session reuses the last result instead of re-hitting
+// the browse API every time.
+const genreCache = new Map<string, SearchResult[]>();
 
 function normalizeTitleForDedup(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -159,4 +177,24 @@ export async function getRelatedShows(
 ): Promise<SearchResult[]> {
   if (source === 'tmdb') return getTmdbRelatedShows(genres, sourceId);
   return getAnilistRelatedShows(sourceId);
+}
+
+/** Browse shows in a given genre, best-rated first — powers GenreScreen
+ * when a genre chip is tapped on a show's detail screen. Dispatches by
+ * source since TMDB and AniList each have their own genre vocabulary
+ * and query shape (see getTmdbShowsByGenre / getAnilistShowsByGenre).
+ * Cached in memory per source+genre (see genreCache) — tapping the same
+ * genre again this session (from the same show, or a different one
+ * that shares it) costs nothing further. */
+export async function getShowsByGenre(
+  source: ShowSource,
+  genreName: string
+): Promise<SearchResult[]> {
+  const cacheKey = `${source}:${genreName}`;
+  const cached = genreCache.get(cacheKey);
+  if (cached) return cached;
+
+  const results = source === 'tmdb' ? await getTmdbShowsByGenre(genreName) : await getAnilistShowsByGenre(genreName);
+  genreCache.set(cacheKey, results);
+  return results;
 }

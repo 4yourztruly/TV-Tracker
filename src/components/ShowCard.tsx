@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function ShowCard({ show, onReady }: Props) {
-  const setSelectedShow = useAppStore((s) => s.setSelectedShow);
+  const pushOverlay = useAppStore((s) => s.pushOverlay);
   const markNextEpisodeWatched = useAppStore((s) => s.markNextEpisodeWatched);
   const unwatchLastEpisode = useAppStore((s) => s.unwatchLastEpisode);
   const cacheSeasonEpisodes = useAppStore((s) => s.cacheSeasonEpisodes);
@@ -327,7 +327,7 @@ export function ShowCard({ show, onReady }: Props) {
       wasDraggedRef.current = false;
       return;
     }
-    setSelectedShow(show.id);
+    pushOverlay({ selectedShowId: show.id });
   }
 
   return (
